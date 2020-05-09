@@ -1,4 +1,5 @@
 use clap::{Arg, App, AppSettings};
+use parse_int::parse;
 
 fn main() {
    let options = App::new("Trailing args example")
@@ -9,16 +10,18 @@ fn main() {
           )
       .get_matches();
 
-   // FIXME rm
-   println!("Hello, world!");
-
    println!("{:?}", options);
    let to_decode: Vec<&str> = options.values_of("inputs").unwrap().collect();
    println!("{:?}", to_decode);
 
    for td in to_decode {
-      if let Ok(as_integer) = td.parse::<u32>() {
-         println!(" {:?} -> {}", td, as_integer);
+      if let Ok(as_integer) = parse::<u32>(td) {
+         print_bits(td, as_integer)
       }
    }
 }
+
+fn print_bits(raw_string: &str, number: u32) {
+   println!("{} -> {}", raw_string, number);
+}
+
