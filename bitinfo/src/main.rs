@@ -2,9 +2,18 @@ use clap::{Arg, App, AppSettings};
 use parse_int::parse;
 use std::mem::size_of_val;
 use std::env;
+use std::path::{PathBuf};
+use std::collections::HashMap;
+use std::fs::File;
+use yaml_rust::{YamlLoader};
 
 // TODO support more separators
 const SEPARATORS: &str = ":";
+
+const CONFIG_FILE_NAME: &str = ".bitinfo";
+
+// TODO second is a struct
+type Bitranges = HashMap<String, String>;
 
 fn main() {
    let app = App::new("Trailing args example")
@@ -19,7 +28,8 @@ fn main() {
    let to_decode: Vec<&str> = options.values_of("inputs").unwrap().collect();
    println!("{:?}", to_decode);
 
-   // TODO begin loading all .bitinfo files in PWD
+   // begin loading all .bitinfo files in PWD
+   load_configs();
 
    for td in to_decode {
       if td.contains(SEPARATORS) {
@@ -59,6 +69,37 @@ fn print_bits(raw_string: &str, number: u32) {
          break;
       }
    }
+}
+
+fn load_configs() {
+   let mut full_path = env::current_dir().unwrap();
+   loop {
+      load_config(&full_path);
+      if !full_path.pop() {
+         break;
+      }
+   }
+
+   // TODO coalesce dictionaries
+}
+
+fn load_config(path: &PathBuf) -> Option<Bitranges>  {
+   let mut path = PathBuf::from(path);
+   path.push(CONFIG_FILE_NAME);
+   println!("{:?}", path);
+
+   let mut f = match File::open(path) {
+      Err(_) => return None,
+      Ok(file) => file,
+   };
+   println!("{:?}", f);
+
+   //let config = YamlLoader::load_from_string(path);
+
+   // TODO open file, load YAML, return Bitrange
+   let mut bi = Bitranges::new();
+
+   Some(bi)
 }
 
 fn find_config_for_name(bin_name: &str) {
