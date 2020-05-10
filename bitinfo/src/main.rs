@@ -71,16 +71,18 @@ fn print_bits(raw_string: &str, number: u32) {
    }
 }
 
-fn load_configs() {
+fn load_configs() -> Option<Bitranges> {
+   let mut all_infos = Bitranges::new();
    let mut full_path = env::current_dir().unwrap();
    loop {
-      load_config(&full_path);
+      if let Some(bi) = load_config(&full_path) {
+         all_infos.extend(bi.into_iter());
+      }
       if !full_path.pop() {
          break;
       }
    }
-
-   // TODO coalesce dictionaries
+   Some(all_infos)
 }
 
 fn load_config(path: &PathBuf) -> Option<Bitranges>  {
