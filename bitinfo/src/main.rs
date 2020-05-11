@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::Read;
 use yaml_rust::{YamlLoader, yaml};
+use yaml_rust::Yaml::{Hash};
 
 // TODO support more separators
 const SEPARATORS: &str = ":";
@@ -142,17 +143,26 @@ fn flatten_hashmap(yhash: yaml::Hash) -> Option<Bitranges> {
    //println!("{:?}", yhash[KEY_MASK]);
    for (k, v) in yhash {
       println!("{:?}:{:?}", k, v);
+      //print_type_of(&k);
    }
-   /*
    match yhash {
-      yaml_rust::Yaml::Hash(h) => {
-         flatten_hashmap(h)
+      yaml_rust::Yaml::Array(a) => {
+         ()
       },
-      kj
+      yaml_rust::Yaml::Hash(h) => {
+         println!("hash");
+         //flatten_hashmap(h);
 
+         // FIXME rm
+         ()
+      },
    }
-   */
    None
+}
+
+// FIXME rm
+fn print_type_of<T>(_: &T) {
+    println!("{}", std::any::type_name::<T>())
 }
 
 fn find_config_for_name(bin_name: &str) {
