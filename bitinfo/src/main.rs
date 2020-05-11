@@ -5,12 +5,15 @@ use std::env;
 use std::path::{PathBuf};
 use std::collections::HashMap;
 use std::fs::File;
-use yaml_rust::{YamlLoader};
+use std::io::Read;
+use yaml_rust::{YamlLoader, yaml};
 
 // TODO support more separators
 const SEPARATORS: &str = ":";
 
-const CONFIG_FILE_NAME: &str = ".bitinfo";
+const CONFIG_FILE_NAME: &str = ".bitinfo.yaml";
+
+const KEY_MASK: &str = "masks";
 
 // TODO second is a struct
 type Bitranges = HashMap<String, String>;
@@ -24,7 +27,6 @@ fn main() {
           );
    let options = app.get_matches();
 
-   println!("{:?}", options);
    let to_decode: Vec<&str> = options.values_of("inputs").unwrap().collect();
    println!("{:?}", to_decode);
 
@@ -49,7 +51,7 @@ fn main() {
 fn smart_decode(key: &str, number: u32) {
    println!("\n{}: {:?}", key, number);
 
-   // TODO decode from .bitinfo
+   // TODO decode from .bitinfo map
 }
 
 fn print_bits(raw_string: &str, number: u32) {
@@ -74,6 +76,7 @@ fn print_bits(raw_string: &str, number: u32) {
 fn load_configs() -> Option<Bitranges> {
    let mut all_infos = Bitranges::new();
    let mut full_path = env::current_dir().unwrap();
+   // TODO dispatch these in parallel
    loop {
       if let Some(bi) = load_config(&full_path) {
          all_infos.extend(bi.into_iter());
@@ -94,14 +97,62 @@ fn load_config(path: &PathBuf) -> Option<Bitranges>  {
       Err(_) => return None,
       Ok(file) => file,
    };
-   println!("{:?}", f);
+   // FIXME rm
 
-   //let config = YamlLoader::load_from_string(path);
+   let mut s = String::new();
+   f.read_to_string(&mut s).unwrap();
+   let config = match YamlLoader::load_from_str(&s) {
+      Err(_) => return None,
+      Ok(cfg) => cfg,
+   };
 
-   // TODO open file, load YAML, return Bitrange
-   let mut bi = Bitranges::new();
+   // we expect this config to be an array of hashmaps
 
-   Some(bi)
+   let mut flattened_maps = Bitranges::new();
+
+   // FIXME rm
+   println!("{:?}", config);
+
+   for c in config {
+      for hm in c {
+         match hm {
+            yaml_rust::Yaml::Hash(h) => {
+               if let Some(flatmap) = flatten_hashmap(h) {
+                  // collapse together
+                  flattened_maps.extend(flatmap.into_iter());
+               }
+            },
+            _ => ()
+         };
+      }
+   }
+
+   Some(flattened_maps)
+}
+
+/*
+ * Flatten all the layers of nested hashmaps under this node and return
+ * them as a single layer hashmap. So concatenate all the keys together,
+ * to the same value.
+ */
+fn flatten_hashmap(yhash: yaml::Hash) -> Option<Bitranges> {
+   // recursively return key:value?
+   println!("\n flatten: {:?}", yhash);
+   // if contains 
+   //println!("{:?}", yhash[KEY_MASK]);
+   for (k, v) in yhash {
+      println!("{:?}:{:?}", k, v);
+   }
+   /*
+   match yhash {
+      yaml_rust::Yaml::Hash(h) => {
+         flatten_hashmap(h)
+      },
+      kj
+
+   }
+   */
+   None
 }
 
 fn find_config_for_name(bin_name: &str) {

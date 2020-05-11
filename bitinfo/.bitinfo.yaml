@@ -1,0 +1,24 @@
+# a comment
+- stpm:
+   DSP_REG1:
+      width: 32
+      masks:
+         - 0: one bit
+         - 1-4: range of three
+         - 5-7: rest of a byte
+   DPS_REG2:
+      width: 8
+      masks:
+         - 0: a bit
+         - 1: another bit
+- class2:
+   class2-l1:
+      # assumed to be u32?
+      masks:
+         - 0: a bit
+- class3:
+   class3-l1:
+      class3-l2:
+         # assumed to be u32?
+         masks:
+            - 0: a bit
