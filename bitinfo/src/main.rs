@@ -16,6 +16,13 @@ const CONFIG_FILE_NAME: &str = ".bitinfo.yaml";
 
 const KEY_MASK: &str = "masks";
 
+// FIXME name
+struct BitInfo {
+   name: String;
+         parent BitInfo;
+   fields: HashMap<String, BitInfo>;
+};
+
 // TODO second is a struct
 type Bitranges = HashMap<String, String>;
 
@@ -114,6 +121,10 @@ fn load_config(path: &PathBuf) -> Option<Bitranges>  {
 
    // we expect this config to be an array of hashmaps
 
+   rethink this. why flatten it? build datastructures (or maps of maps) to hold
+      the info. should probably be structs with maps. think about what data needs to be held
+      and orgamized how
+
    let mut flattened_maps = Bitranges::new();
 
    // FIXME rm
@@ -141,16 +152,35 @@ fn load_config(path: &PathBuf) -> Option<Bitranges>  {
  * them as a single layer hashmap. So concatenate all the keys together,
  * to the same value.
  */
-fn flatten_hashmap(yhash: yaml::Hash) -> Option<Bitranges> {
+fn flatten_hashmap(yhash: &yaml::Hash) -> Option<Bitranges> {
    // recursively return key:value?
    println!("\n flatten: {:?}", yhash);
    // if contains 
    //println!("{:?}", yhash[KEY_MASK]);
    for (k, v) in yhash {
-      println!("{:?}:{:?}", k, v);
+      println!("f {:?}:{:?}", k, v);
       //print_type_of(&k);
    }
    match yhash {
+      yaml::Yaml::Array(ref v) => {
+         for x in v {
+            flatten_hashmap(x);
+         }
+      }
+      yaml::Yaml::Hash(ref h) => {
+         for (k, v) in h {
+            println!("{:?}:", k);
+            flatten_hashmap(v);
+         }
+      }
+      _ => {
+         println!("END {:?}", doc);
+         //return format!("{:?}", doc);
+         return doc;
+      }
+   }
+   None
+      /*
       yaml_rust::Yaml::Array(a) => {
          ()
       },
@@ -163,6 +193,7 @@ fn flatten_hashmap(yhash: yaml::Hash) -> Option<Bitranges> {
       },
    }
    None
+   */
 }
 
 // FIXME rm
