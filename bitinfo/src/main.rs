@@ -28,7 +28,12 @@ fn main() {
           );
    let options = app.get_matches();
 
-   let to_decode: Vec<&str> = options.values_of("inputs").unwrap().collect();
+   // check to see if there are any trailing args and get them
+   let to_decode: Vec<&str> = vec![];
+   if let Some(td) = options.values_of("inputs") {
+      let to_decode: Vec<&str> = td.collect();
+   }
+
    println!("{:?}", to_decode);
 
    // begin loading all .bitinfo files in PWD
