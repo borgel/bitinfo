@@ -27,7 +27,7 @@ struct BitInfo {
 type Bitranges = HashMap<String, String>;
 
 fn main() {
-   let app = App::new("Trailing args example")
+   let app = App::new("The bitinfo tool to tell you about the bits in your registers")
       .setting(AppSettings::TrailingVarArg)
       // TODO more args
       .arg(Arg::with_name("inputs")
@@ -36,12 +36,13 @@ fn main() {
    let options = app.get_matches();
 
    // check to see if there are any trailing args and get them
-   let to_decode: Vec<&str> = vec![];
+   let to_decode: Vec<&str>;
    if let Some(td) = options.values_of("inputs") {
-      let to_decode: Vec<&str> = td.collect();
+      to_decode = td.collect();
    }
-
-   println!("{:?}", to_decode);
+   else {
+      return ();
+   }
 
    // begin loading all .bitinfo files in PWD
    load_configs();
