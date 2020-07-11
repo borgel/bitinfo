@@ -20,16 +20,22 @@ const CONFIG_FILE_NAME: &str = ".bitinfo.yaml";
 const KEY_MASK: &str = "masks";
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
-struct BitRange {
-   name: String,
-   //parent BitRange,
+struct BitInfo {
+   // name is implicit as the 'key' to this value
+   description: Option<String>,
+
    fields: Option<HashMap<String, BitInfo>>,
+   ranges: Option<HashMap<String, BitRange>>,
 }
 
+// leaves
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
-struct BitInfo {
-   name: String,
-   description: String,
+struct BitRange {
+   // name is implicit as the 'key' to this value
+   description: Option<String>,
+
+   // optional so it can be determined by summing all the children
+   bit_width: Option<u32>,
 
    // we have to fill these in
    offset_start: Option<u32>,
@@ -59,6 +65,9 @@ fn main() {
 
    // begin loading all .bitinfo files in PWD
    load_configs();
+
+   // FIXME rm
+   return ();
 
    for td in to_decode {
       if td.contains(SEPARATORS) {
@@ -119,31 +128,41 @@ fn load_configs() -> HashMap<String, BitInfo> {
    all_infos
 }
 
-fn load_config(path: &PathBuf) -> Option<BitInfo>  {
+fn load_config(path: &PathBuf) -> Result<BitInfo, ()>  {
    let mut path = PathBuf::from(path);
    path.push(CONFIG_FILE_NAME);
 
    let mut f = match File::open(path) {
-      Err(_) => return None,
+      Err(_) => return Err(()),
       Ok(file) => file,
    };
 
    println!("Opened {:?}", &f);
 
-   None
 
-   /*
    // FIXME rm
    let mut s = String::new();
    f.read_to_string(&mut s).unwrap();
+
+   let inflated: HashMap<String, BitInfo> = match serde_yaml::from_str(&s) {
+      Ok(inf) => inf,
+      Err(e) => {
+         eprintln!("failed to inflate: {}", e);
+         return Err(())
+      },
+   };
+
+   println!("inflated info {:?}", &inflated);
+
+   Err(())
+
+   /*
    let config = match YamlLoader::load_from_str(&s) {
       Err(_) => return None,
       Ok(cfg) => cfg,
    };
 
    // we expect this config to be an array of hashmaps
-
-
    rethink this. why flatten it? build datastructures (or maps of maps) to hold
       the info. should probably be structs with maps. think about what data needs to be held
       and orgamized how
