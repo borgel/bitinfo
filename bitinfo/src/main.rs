@@ -9,6 +9,9 @@ use std::io::Read;
 use yaml_rust::{YamlLoader, yaml};
 use yaml_rust::Yaml::{Hash};
 
+use serde::{Serialize, Deserialize};
+
+
 // TODO support more separators
 const SEPARATORS: &str = ":";
 
@@ -16,15 +19,25 @@ const CONFIG_FILE_NAME: &str = ".bitinfo.yaml";
 
 const KEY_MASK: &str = "masks";
 
-// FIXME name
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+struct BitRange {
+   name: String,
+   //parent BitRange,
+   fields: Option<HashMap<String, BitInfo>>,
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 struct BitInfo {
-   name: String;
-         parent BitInfo;
-   fields: HashMap<String, BitInfo>;
-};
+   name: String,
+   description: String,
+
+   // we have to fill these in
+   offset_start: Option<u32>,
+   offset_end: Option<u32>,
+}
 
 // TODO second is a struct
-type Bitranges = HashMap<String, String>;
+//type Bitranges = HashMap<String, String>;
 
 fn main() {
    let app = App::new("The bitinfo tool to tell you about the bits in your registers")
@@ -87,32 +100,40 @@ fn print_bits(raw_string: &str, number: u32) {
    }
 }
 
-fn load_configs() -> Option<Bitranges> {
-   let mut all_infos = Bitranges::new();
+// top level class name:info struct
+fn load_configs() -> HashMap<String, BitInfo> {
+   let mut all_infos: HashMap<String, BitInfo> = HashMap::new();
    let mut full_path = env::current_dir().unwrap();
    // TODO dispatch these in parallel
    loop {
+      load_config(&full_path);
+      /*
       if let Some(bi) = load_config(&full_path) {
          all_infos.extend(bi.into_iter());
       }
+      */
       if !full_path.pop() {
          break;
       }
    }
-   Some(all_infos)
+   all_infos
 }
 
-fn load_config(path: &PathBuf) -> Option<Bitranges>  {
+fn load_config(path: &PathBuf) -> Option<BitInfo>  {
    let mut path = PathBuf::from(path);
    path.push(CONFIG_FILE_NAME);
-   println!("{:?}", path);
 
    let mut f = match File::open(path) {
       Err(_) => return None,
       Ok(file) => file,
    };
-   // FIXME rm
 
+   println!("Opened {:?}", &f);
+
+   None
+
+   /*
+   // FIXME rm
    let mut s = String::new();
    f.read_to_string(&mut s).unwrap();
    let config = match YamlLoader::load_from_str(&s) {
@@ -121,6 +142,7 @@ fn load_config(path: &PathBuf) -> Option<Bitranges>  {
    };
 
    // we expect this config to be an array of hashmaps
+
 
    rethink this. why flatten it? build datastructures (or maps of maps) to hold
       the info. should probably be structs with maps. think about what data needs to be held
@@ -146,8 +168,10 @@ fn load_config(path: &PathBuf) -> Option<Bitranges>  {
    }
 
    Some(flattened_maps)
+   */
 }
 
+/*
 /*
  * Flatten all the layers of nested hashmaps under this node and return
  * them as a single layer hashmap. So concatenate all the keys together,
@@ -205,4 +229,5 @@ fn print_type_of<T>(_: &T) {
 fn find_config_for_name(bin_name: &str) {
    // search up PWD looking for .bitinfo  files
 }
+*/
 
