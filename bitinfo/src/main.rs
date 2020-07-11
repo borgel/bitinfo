@@ -37,9 +37,12 @@ struct BitRange {
    // optional so it can be determined by summing all the children
    bit_width: Option<u32>,
 
+   masks: Option<HashMap<String, String>>,
+   /*
    // we have to fill these in
    offset_start: Option<u32>,
    offset_end: Option<u32>,
+   */
 }
 
 // TODO second is a struct
