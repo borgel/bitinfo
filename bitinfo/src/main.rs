@@ -25,10 +25,9 @@ struct BitInfo {
    description: Option<String>,
 
    fields: Option<HashMap<String, BitInfo>>,
-   ranges: Option<HashMap<String, BitRange>>,
+   registers: Option<HashMap<String, BitRange>>,
 }
 
-// leaves
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 struct BitRange {
    // name is implicit as the 'key' to this value
@@ -37,12 +36,27 @@ struct BitRange {
    // optional so it can be determined by summing all the children
    bit_width: Option<u32>,
 
-   masks: Option<HashMap<String, String>>,
-   /*
-   // we have to fill these in
-   offset_start: Option<u32>,
-   offset_end: Option<u32>,
-   */
+   masks: Option<HashMap<String, BitMask>>,
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+struct BitMask {
+   start: u32,
+   // specify either end or width or both. If neither is specified the mask is assumed to be one
+   // bit wide
+   end: Option<u32>,
+   width: Option<u32>,
+
+   description: Option<String>,
+   negated: Option<bool>,
+   // print this in bin, dec, hex
+   preferred_format: Option<String>,
+
+   // bit patterns (in binary) which have special meanings for this mask. If this is unspecified
+   // the tool will print it in the preferred format. If these are specified the value description
+   // will be printed along with the value in this range (in the preferred format) if the
+   // binary key is matched
+   patterns: Option<HashMap<String, String>>,
 }
 
 // TODO second is a struct
