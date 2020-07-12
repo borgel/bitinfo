@@ -6,8 +6,6 @@ use std::path::{PathBuf};
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::Read;
-use yaml_rust::{YamlLoader, yaml};
-use yaml_rust::Yaml::{Hash};
 
 use serde::{Serialize, Deserialize};
 
@@ -18,6 +16,8 @@ const SEPARATORS: &str = ":";
 const CONFIG_FILE_NAME: &str = ".bitinfo.yaml";
 
 const KEY_MASK: &str = "masks";
+
+type InfoMap = HashMap<String, BitInfo>;
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 struct BitInfo {
@@ -76,10 +76,8 @@ fn main() {
    }
 
    // begin loading all .bitinfo files in PWD
-   load_configs();
-
-   // FIXME rm
-   return ();
+   let configs = load_configs();
+   println!("Loaded {} configs", configs.len());
 
    for td in to_decode {
       if td.contains(SEPARATORS) {
@@ -121,18 +119,15 @@ fn print_bits(raw_string: &str, number: u32) {
    }
 }
 
-// top level class name:info struct
-fn load_configs() -> HashMap<String, BitInfo> {
+// returns a map of all the loaded user configs to search for decoding, even if it's empty
+fn load_configs() -> InfoMap {
    let mut all_infos: HashMap<String, BitInfo> = HashMap::new();
    let mut full_path = env::current_dir().unwrap();
    // TODO dispatch these in parallel
    loop {
-      load_config(&full_path);
-      /*
-      if let Some(bi) = load_config(&full_path) {
-         all_infos.extend(bi.into_iter());
+      if let Ok(c) = load_config(&full_path) {
+         all_infos.extend(c.into_iter());
       }
-      */
       if !full_path.pop() {
          break;
       }
@@ -140,7 +135,7 @@ fn load_configs() -> HashMap<String, BitInfo> {
    all_infos
 }
 
-fn load_config(path: &PathBuf) -> Result<BitInfo, ()>  {
+fn load_config(path: &PathBuf) -> Result<InfoMap, ()>  {
    let mut path = PathBuf::from(path);
    path.push(CONFIG_FILE_NAME);
 
@@ -164,8 +159,8 @@ fn load_config(path: &PathBuf) -> Result<BitInfo, ()>  {
       },
    };
 
+   // FIXME rm
    println!("inflated info {:?}\n\n", &inflated);
-
    for (name, config) in &inflated {
       println!("One: {}:{:?}", name, config);
       let hm = config.registers.as_ref().unwrap();
@@ -174,90 +169,7 @@ fn load_config(path: &PathBuf) -> Result<BitInfo, ()>  {
       }
    }
 
-   Err(())
-
-   /*
-   let config = match YamlLoader::load_from_str(&s) {
-      Err(_) => return None,
-      Ok(cfg) => cfg,
-   };
-
-   // we expect this config to be an array of hashmaps
-   rethink this. why flatten it? build datastructures (or maps of maps) to hold
-      the info. should probably be structs with maps. think about what data needs to be held
-      and orgamized how
-
-   let mut flattened_maps = Bitranges::new();
-
-   // FIXME rm
-   println!("{:?}", config);
-
-   for c in config {
-      for hm in c {
-         match hm {
-            yaml_rust::Yaml::Hash(h) => {
-               if let Some(flatmap) = flatten_hashmap(h) {
-                  // collapse together
-                  flattened_maps.extend(flatmap.into_iter());
-               }
-            },
-            _ => ()
-         };
-      }
-   }
-
-   Some(flattened_maps)
-   */
-}
-
-/*
-/*
- * Flatten all the layers of nested hashmaps under this node and return
- * them as a single layer hashmap. So concatenate all the keys together,
- * to the same value.
- */
-fn flatten_hashmap(yhash: &yaml::Hash) -> Option<Bitranges> {
-   // recursively return key:value?
-   println!("\n flatten: {:?}", yhash);
-   // if contains 
-   //println!("{:?}", yhash[KEY_MASK]);
-   for (k, v) in yhash {
-      println!("f {:?}:{:?}", k, v);
-      //print_type_of(&k);
-   }
-   match yhash {
-      yaml::Yaml::Array(ref v) => {
-         for x in v {
-            flatten_hashmap(x);
-         }
-      }
-      yaml::Yaml::Hash(ref h) => {
-         for (k, v) in h {
-            println!("{:?}:", k);
-            flatten_hashmap(v);
-         }
-      }
-      _ => {
-         println!("END {:?}", doc);
-         //return format!("{:?}", doc);
-         return doc;
-      }
-   }
-   None
-      /*
-      yaml_rust::Yaml::Array(a) => {
-         ()
-      },
-      yaml_rust::Yaml::Hash(h) => {
-         println!("hash");
-         //flatten_hashmap(h);
-
-         // FIXME rm
-         ()
-      },
-   }
-   None
-   */
+   Ok(inflated)
 }
 
 // FIXME rm
@@ -268,5 +180,4 @@ fn print_type_of<T>(_: &T) {
 fn find_config_for_name(bin_name: &str) {
    // search up PWD looking for .bitinfo  files
 }
-*/
 
