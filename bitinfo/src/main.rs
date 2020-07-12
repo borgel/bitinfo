@@ -15,8 +15,6 @@ const SEPARATORS: &str = ":";
 
 const CONFIG_FILE_NAME: &str = ".bitinfo.yaml";
 
-const KEY_MASK: &str = "masks";
-
 type InfoMap = HashMap<String, BitInfo>;
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
@@ -80,30 +78,64 @@ fn main() {
    println!("Loaded {} configs", configs.len());
 
    for td in to_decode {
+      // anything with a specified type MUST include at least one separator, so filter on that
       if td.contains(SEPARATORS) {
          let mut sp: Vec<&str> = td.split(SEPARATORS).collect();
          let numeric_val = sp.pop().unwrap();
          if let Ok(nv) = parse::<u32>(numeric_val) {
-            smart_decode(&sp.join(":"), nv);
+            smart_decode(nv, sp, &configs);
          }
          continue;
       }
-      if let Ok(as_integer) = parse::<u32>(td) {
-         print_bits(td, as_integer);
+      else {
+         if let Ok(as_integer) = parse::<u32>(td) {
+            print_bits(as_integer);
+         }
       }
    }
 }
 
-fn smart_decode(key: &str, number: u32) {
-   println!("\n{}: {:?}", key, number);
+fn smart_decode(number: u32, keys: Vec<&str>, configs: &InfoMap) {
+   println!("\n{:?}: {:?}", keys, number);
 
    // TODO decode from .bitinfo map
+   let decoder = match find_config_for_name(keys, configs) {
+      Some(d) => d,
+      None => {
+         // if we don't have a config, just print the bits
+         print_bits(number);
+         return
+      }
+   };
+
+   println!("found a decoder! {:?}", &decoder);
+
+   // TODO decode it
 }
 
-fn print_bits(raw_string: &str, number: u32) {
-   println!("\"{}\" -> {} {:#X} {:#b}", raw_string, number, number, number);
+fn find_config_for_name<'a>(mut keys: Vec<&str>, config: &'a InfoMap) -> Option<&'a BitInfo> {
+   // use .get so it returns an Option instead of a panic
+   // TODO make hashmap search case insensitive, which is surprisingly hard
+   if let Some(cfg) = config.get(keys[0]) {
+      // FIXME rm
+      println!("got an info for this struct {:?}", cfg);
+      keys.remove(0);
 
-   // see if we can find a config file for this bin
+      // if the BitInfo has more 'registers' than recurse, otherwise we are at the end
+      if let Some(r) = cfg.registers.as_ref() {
+         println!("more registers: keys {:?} registers {:?}", keys, r);
+         return find_config_for_name(keys, r);
+      }
+      else {
+         println!("at bottom");
+         return Some(cfg)
+      }
+   }
+   return None
+}
+
+fn print_bits(number: u32) {
+   println!("\"{}\" -> {} {:#X} {:#b}", number, number, number, number);
 
    let bits = 8 * size_of_val(&number);
    let mut number_to_eat = number;
@@ -173,11 +205,9 @@ fn load_config(path: &PathBuf) -> Result<InfoMap, ()>  {
 }
 
 // FIXME rm
+/*
 fn print_type_of<T>(_: &T) {
     println!("{}", std::any::type_name::<T>())
 }
-
-fn find_config_for_name(bin_name: &str) {
-   // search up PWD looking for .bitinfo  files
-}
+*/
 

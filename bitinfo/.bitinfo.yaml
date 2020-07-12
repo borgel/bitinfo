@@ -1,5 +1,5 @@
 # a comment
-stpm:
+STPM:
    description: a crazy current sensor
    registers:
       DSP_CR3:
