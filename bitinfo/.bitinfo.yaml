@@ -1,80 +1,40 @@
 # a comment
-#sample class:
-#   description: a bitinfo file can hold lots of cool things
-#   fields:
-#      a subclass:
-#         description: there can be subclasses
-#         fields:
-#            second subclass:
-#               description: with subclasses
-#   registers:
-#      a-register:
-#         description: mixed with register bit ranges
-#         bit_width: 32
-#         # masks:
-#            #            0: fields in registers can be specified in a variety of ways
-#            #            1: this one is one bit wide
-#            #            2-3: this one is two bits wide
-#            #            3: asd
 stpm:
    description: a crazy current sensor
-   fields:
+   registers:
       DSP_CR3:
          description: dsp control reg 3
          bit_width: 32
-         registers:
+         fields:
             ZCR_SEL:
-               description: zero ctrossing config
+               description: zero crossing config
                start: 14
                width: 2
+               preferred_format: bin
+            ZCR_EN:
+               start: 16
+               negated: false
                patterns:
-                  0b00: what
-                  0b01: anothr
-
+                  0b0: CLK
+                  0b1: ZCR
       DSP_EV2:
          description: the dsp event reg 2
          bit_width: 32
          registers:
-            power sign ph1 + ph2:
-               masks:
-                  active:
-                     description: active power sign?
-                     start: 0
-                     preferred_format: bool
-                     negated: false
-                  reactive:
-                     description: active power sign?
-                     start: 1
-                     preferred_format: bool 
-                     negated: false
-      DSP_REG2:
-         bit_width: 32
-         registers:
-            v1 data:
-               start: 0
-               end: 11
-               # no patterns, this is just a number
-               preferred_format: dec
-# - stpm:
-#    - DSP_REG1:
-#       width: 32
-#       masks:
-#          - 0: one bit
-#          - 1-4: range of three
-#          - 5-7: rest of a byte
-#    - DPS_REG2:
-#       width: 8
-#       masks:
-#          - 0: a bit
-#          - 1: another bit
-# - class2:
-#    - class2-l1:
-#       # assumed to be u32?
-#       masks:
-#          - 0: a bit
-# - class3:
-#    - class3-l1:
-#       class3-l2:
-#          # assumed to be u32?
-#          masks:
-#             - 0: a bit
+            ph1 + ph2:
+               description: info for both phases
+               preferred_format: binary
+               registers:
+                  power sign:
+                     fields:
+                        active:
+                           start: 0
+                        reactive:
+                           start: 1
+                  energy overflow:
+                     fields:
+                        active:
+                           start: 2
+                        reactive:
+                           start: 3
+

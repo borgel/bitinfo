@@ -24,23 +24,18 @@ struct BitInfo {
    // name is implicit as the 'key' to this value
    description: Option<String>,
 
-   fields: Option<HashMap<String, BitInfo>>,
-   registers: Option<HashMap<String, BitRange>>,
-}
-
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
-struct BitRange {
-   // name is implicit as the 'key' to this value
-   description: Option<String>,
-
    // optional so it can be determined by summing all the children
    bit_width: Option<u32>,
+   // set the default print format for all children
+   preferred_format: Option<String>,
 
-   masks: Option<HashMap<String, BitMask>>,
+   // TODO find a way to make these names less bad
+   registers: Option<HashMap<String, BitInfo>>,
+   fields: Option<HashMap<String, RegisterMask>>,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
-struct BitMask {
+struct RegisterMask{
    start: u32,
    // specify either end or width or both. If neither is specified the mask is assumed to be one
    // bit wide
@@ -169,7 +164,15 @@ fn load_config(path: &PathBuf) -> Result<BitInfo, ()>  {
       },
    };
 
-   println!("inflated info {:?}", &inflated);
+   println!("inflated info {:?}\n\n", &inflated);
+
+   for (name, config) in &inflated {
+      println!("One: {}:{:?}", name, config);
+      let hm = config.registers.as_ref().unwrap();
+      for r in hm {
+         println!("  Two: {:?}", r);
+      }
+   }
 
    Err(())
 
