@@ -6,6 +6,8 @@ use std::path::{PathBuf};
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::Read;
+use bitvec::prelude::*;
+use std::iter::repeat;
 
 use serde::{Serialize, Deserialize};
 
@@ -14,6 +16,27 @@ use serde::{Serialize, Deserialize};
 const SEPARATORS: &str = ":";
 
 const CONFIG_FILE_NAME: &str = ".bitinfo.yaml";
+
+// available printing preferences
+#[derive(Debug, Clone, Copy)]
+enum PrintPreference {
+   Bin,
+   Hex,
+   Decimal,
+}
+impl From<&str> for PrintPreference {
+   fn from(s: &str) -> Self {
+      match s.to_lowercase().as_ref() {
+         "bin" => PrintPreference::Bin,
+         "binary" => PrintPreference::Bin,
+         "hex" => PrintPreference::Hex,
+         "dec" => PrintPreference::Decimal,
+         "decimal" => PrintPreference::Decimal,
+         // if we didn't match, assume the default
+         _ => PrintPreference::Hex,
+      }
+   }
+}
 
 type InfoMap = HashMap<String, BitInfo>;
 
@@ -52,8 +75,66 @@ struct RegisterMask{
    patterns: Option<HashMap<String, String>>,
 }
 
-// TODO second is a struct
-//type Bitranges = HashMap<String, String>;
+// a RegisterMask which has been inflated and ready to use
+#[derive(Debug)]
+struct InflatedRegisterMask {
+   name: String,
+   print_format: PrintPreference,
+
+   bitmask: BitVec,
+   base_offset: u32,
+   width: u32,
+
+   patterns: HashMap<u32, String>,
+}
+impl InflatedRegisterMask {
+   fn try_from(rm: &RegisterMask, name: &String, default_print_pref: &PrintPreference) -> Option<Self> {
+      let width = match rm.width {
+         Some(w) => w,
+         None => match rm.end {
+            Some(end) => end - rm.start,
+            // if there is neither an end nor a width, assume the field is one bit wide
+            None => 1,
+         }
+      };
+
+      // reconstruct the actual mask from the description
+      // local bit ordering
+      let mut mask = bitvec![Local;];
+      // leading 0s
+      mask.extend(repeat(false).take(rm.start as usize));
+      // add the 1s
+      mask.extend(repeat(true).take(width as usize));
+
+      // reformat the descriptive patterns
+      let mut pattern_map: HashMap<u32, String> = HashMap::new();
+      if let Some(pm) = &rm.patterns {
+         for (bits, description) in pm {
+            // we expect the bit patterns to be in some numeric format, which we can parse
+            // directly to a scalar
+            if let Ok(parsed) = parse::<u32>(&bits) {
+               pattern_map.insert(parsed, description.to_string());
+            }
+         }
+      }
+
+      // figure out how to print this
+      let mut print_pref = default_print_pref.clone();
+      if let Some(pf) = &rm.preferred_format {
+         print_pref = PrintPreference::from(pf.as_ref());
+      }
+
+      Some(InflatedRegisterMask {
+         name: name.to_string(),
+         print_format: print_pref,
+         bitmask: mask,
+         base_offset: rm.start,
+         width: width,
+         patterns: pattern_map,
+      })
+   }
+}
+// TODO implement fmt so we can print an inflated mask?
 
 fn main() {
    let app = App::new("The bitinfo tool to tell you about the bits in your registers")
@@ -95,11 +176,13 @@ fn main() {
    }
 }
 
-fn smart_decode(number: u32, keys: Vec<&str>, configs: &InfoMap) {
+fn smart_decode(number: u32, mut keys: Vec<&str>, configs: &InfoMap) {
    println!("\n{:?}: {:?}", keys, number);
 
+   let name = keys.last().unwrap().clone();
+
    // TODO decode from .bitinfo map
-   let decoder = match find_config_for_name(keys, configs) {
+   let decoder = match find_config_for_name(&mut keys, configs) {
       Some(d) => d,
       None => {
          // if we don't have a config, just print the bits
@@ -108,30 +191,55 @@ fn smart_decode(number: u32, keys: Vec<&str>, configs: &InfoMap) {
       }
    };
 
-   println!("found a decoder! {:?}", &decoder);
+   // FIXME rm
+   println!("found a decoder for {}! {:?}", &name, &decoder);
 
-   // TODO decode it
+   // prep the list of decoders for this BitInfo's fields
+   let decoders = prep_decoders(&decoder);
+
+   // FIXME rm
+   println!("inflated deocders to this list:\n{:?}", decoders);
+
+   // TODO apply the decoders to print the fields in this number
 }
 
-fn find_config_for_name<'a>(mut keys: Vec<&str>, config: &'a InfoMap) -> Option<&'a BitInfo> {
+fn find_config_for_name<'a>(keys: &mut Vec<&str>, config: &'a InfoMap) -> Option<&'a BitInfo> {
    // use .get so it returns an Option instead of a panic
    // TODO make hashmap search case insensitive, which is surprisingly hard
    if let Some(cfg) = config.get(keys[0]) {
-      // FIXME rm
-      println!("got an info for this struct {:?}", cfg);
       keys.remove(0);
 
       // if the BitInfo has more 'registers' than recurse, otherwise we are at the end
       if let Some(r) = cfg.registers.as_ref() {
-         println!("more registers: keys {:?} registers {:?}", keys, r);
          return find_config_for_name(keys, r);
       }
       else {
-         println!("at bottom");
          return Some(cfg)
       }
    }
    return None
+}
+
+fn prep_decoders(raw_dec: &BitInfo) -> Vec<InflatedRegisterMask>  {
+   let parent_format = match &raw_dec.preferred_format {
+      Some(pf) => PrintPreference::from(pf.as_ref()),
+      None => PrintPreference::Hex,
+   };
+
+   let mut decoders: Vec<InflatedRegisterMask> = Vec::new();
+
+   let raw_fields = match &raw_dec.fields {
+      Some(f) => f,
+      None => return decoders,
+   };
+
+   for (reg_name, description) in raw_fields {
+      if let Some(dc) = InflatedRegisterMask::try_from(&description, reg_name, &parent_format) {
+         decoders.push(dc);
+      }
+   }
+
+   return decoders
 }
 
 fn print_bits(number: u32) {
