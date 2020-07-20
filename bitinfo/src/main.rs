@@ -131,6 +131,25 @@ impl InflatedRegisterMask {
          patterns: pattern_map,
       })
    }
+   fn format_value(self, val: u32) -> Vec<(String,String)> {
+      let mut formats: Vec<(String, String)> = Vec::new();
+
+      // shift down user value so we can use it more directly
+      let extracted_mask: u32 = self.bitmask[..].load::<u32>();
+      let val_masked = (val & extracted_mask) >> self.base_offset;
+
+      if self.patterns.len() > 0 {
+         if self.patterns.contains_key(&val_masked) {
+            formats.push((format!("{}", self.name), self.patterns[&val_masked].clone()));
+         }
+      }
+      else {
+         // no patterns for this range, format it and return
+         // TODO obey preferred format
+         formats.push((format!("{}", self.name), format!("{:X}", val_masked)));
+      }
+      formats
+   }
 }
 // TODO implement fmt so we can print an inflated mask?
 
@@ -197,9 +216,22 @@ fn smart_decode(number: u32, mut keys: Vec<&str>, configs: &InfoMap) {
    let decoders = prep_decoders(&decoder);
 
    // FIXME rm
-   println!("inflated deocders to this list:\n{:?}", decoders);
+   println!("inflated deocders to this list:\n{:#?}", decoders);
 
-   // TODO apply the decoders to print the fields in this number
+   // print the value of all decoders, they will mask out the relevant sections of the user's
+   // value. Anything not in a given pattern is considered 'reserved' and not printed
+   // TODO sort keys by start bit
+   let mut all_formats: Vec<(String, String)> = Vec::new();
+   for d in decoders {
+      all_formats.extend(d.format_value(number));
+   }
+
+   // final user output
+   // TODO obey user format
+   println!("0x{:X} ->", number);
+   for f in all_formats {
+      println!("\t{} =\t{}", f.0, f.1);
+   }
 }
 
 fn find_config_for_name<'a>(keys: &mut Vec<&str>, config: &'a InfoMap) -> Option<&'a BitInfo> {
