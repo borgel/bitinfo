@@ -11,9 +11,7 @@ use std::iter::repeat;
 
 use serde::{Serialize, Deserialize};
 
-
-// TODO support more separators
-const SEPARATORS: &str = ":";
+const SEPARATORS: &str = ":./";
 
 const CONFIG_FILE_NAME: &str = ".bitinfo.yaml";
 
@@ -159,9 +157,10 @@ fn main() {
    println!("Loaded {} configs", configs.len());
 
    for td in to_decode {
-      // anything with a specified type MUST include at least one separator, so filter on that
-      if td.contains(SEPARATORS) {
-         let mut sp: Vec<&str> = td.split(SEPARATORS).collect();
+      // split on anything that isn't a number
+      let mut sp: Vec<&str> = td.split(|c: char| SEPARATORS.contains(c)).collect();
+      if sp.len() > 1 {
+         // get the last segment of the vec which should be the final value
          let numeric_val = sp.pop().unwrap();
          if let Ok(nv) = parse::<u32>(numeric_val) {
             smart_decode(nv, sp, &configs);
