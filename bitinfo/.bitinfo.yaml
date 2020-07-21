@@ -6,17 +6,79 @@ STPM:
          description: dsp control reg 3
          bit_width: 32
          fields:
+            SAG_TIME_THR:
+               description: The sag time
+               start: 0
+               end: 13
             ZCR_SEL:
-               description: zero crossing config
                start: 14
                width: 2
                preferred_format: bin
+               description: Selection bit for ZCR/CLK pin, (output depends on ZCR/CLK enable bit)
+               patterns:
+                  0b00: V1 / 7.8125 kHz
+                  0b01: C1 / 4 MHz
+                  0b10: V2 / 4 MHz (50% Duty Cycle)
+                  0b11: C2 / 16 MHz
             ZCR_EN:
                start: 16
                negated: false
                patterns:
                   0b0: CLK
                   0b1: ZCR
+            TMP_TOL:
+               start: 17
+               width: 2
+               description: Tamper tolerance
+               patterns:
+                  0b00: 12.5%
+                  0b01: 8.33%
+                  0b10: 6.25%
+                  0b11: 3.125%
+            TMP_EN:
+               description: Tamper detect enable
+               start: 19
+               patterns:
+                  0b0: tamper disable
+                  0b1: tamper enable
+            S/W Reset:
+               description: Software reset
+               start: 20
+            S/W Latch 1:
+               start: 21
+            S/W Latch 2:
+               start: 22
+            S/W Auto Latch:
+               description: Auto latch
+               start: 23
+               patterns:
+                  0b0: Disabled
+                  0b1: Enabled
+            LED_OFF1:
+               description: LED pin output disable
+               start: 24
+               patterns:
+                  0b0: LED output on
+                  0b1: LED output disabled
+            LED_OFF2:
+               description: LED pin output disable
+               start: 25
+               patterns:
+                  0b0: LED output on
+                  0b1: LED output disabled
+            EN_CUM:
+               description: Cumulative energy calculaton
+               start: 26
+               patterns:
+                  0b0: Cumulative is the sum of channel energies
+                  0b1: Total is the difference of energies
+            REF_FRQ:
+               description: Reference line frequency
+               start: 27
+               patterns:
+                  0b0: 50 Hz
+                  0b1: 60 Hz
+
       DSP_EV2:
          description: the dsp event reg 2
          preferred_format: binary
