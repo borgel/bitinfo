@@ -78,6 +78,9 @@ struct RegisterDescription {
    name: String,
    value: String,
    description: Option<String>,
+
+   // to sort the order in which these should be printed
+   sort: u32,
 }
 
 // a RegisterMask which has been inflated and ready to use
@@ -160,6 +163,7 @@ impl InflatedRegisterMask {
          name: self.name.clone(),
          value: decoded_value,
          description: self.description,
+         sort: self.base_offset,
       }
    }
 }
@@ -238,6 +242,8 @@ fn smart_decode(number: u32, mut keys: Vec<&str>, configs: &InfoMap) {
    for d in decoders {
       all_formats.push(d.format_value(number));
    }
+
+   all_formats.sort_by(|a, b| a.sort.cmp(&b.sort));
 
    // final user output
    // TODO obey user format
