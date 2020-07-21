@@ -77,6 +77,7 @@ struct RegisterMask{
 #[derive(Debug)]
 struct InflatedRegisterMask {
    name: String,
+   description: Option<String>,
    print_format: PrintPreference,
 
    bitmask: BitVec,
@@ -124,6 +125,7 @@ impl InflatedRegisterMask {
 
       Some(InflatedRegisterMask {
          name: name.to_string(),
+         description: rm.description.clone(),
          print_format: print_pref,
          bitmask: mask,
          base_offset: rm.start,
@@ -146,7 +148,13 @@ impl InflatedRegisterMask {
       else {
          // no patterns for this range, format it and return
          // TODO obey preferred format
-         formats.push((format!("{}", self.name), format!("{:X}", val_masked)));
+         // TODO obey negated
+         // TODO add desription (new struct for all three?)
+         let mut t = (format!("{}", self.name), format!("{:X}", val_masked));
+         if let Some(desc) = self.description {
+            t = (format!("{}", self.name), format!("{:X} ({})", val_masked, desc));
+         }
+         formats.push(t);
       }
       formats
    }
@@ -215,6 +223,7 @@ fn smart_decode(number: u32, mut keys: Vec<&str>, configs: &InfoMap) {
    // prep the list of decoders for this BitInfo's fields
    let decoders = prep_decoders(&decoder);
 
+   // TODO use a logger to put behind info flags
    // FIXME rm
    println!("inflated deocders to this list:\n{:#?}", decoders);
 
