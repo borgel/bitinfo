@@ -73,6 +73,13 @@ struct RegisterMask{
    patterns: Option<HashMap<String, String>>,
 }
 
+// useful for passing around the final baked descriptions to format out to the user
+struct RegisterDescription {
+   name: String,
+   value: String,
+   description: Option<String>,
+}
+
 // a RegisterMask which has been inflated and ready to use
 #[derive(Debug)]
 struct InflatedRegisterMask {
@@ -133,32 +140,27 @@ impl InflatedRegisterMask {
          patterns: pattern_map,
       })
    }
-   fn format_value(self, val: u32) -> Vec<(String,String)> {
-      let mut formats: Vec<(String, String)> = Vec::new();
-
+   fn format_value(self, val: u32) -> RegisterDescription {
       // shift down user value so we can use it more directly
       let extracted_mask: u32 = self.bitmask[..].load::<u32>();
       let val_masked = (val & extracted_mask) >> self.base_offset;
 
-      let mut descr = format!("");
-      if let Some(d) = self.description {
-         descr = format!(" ({})", d);
-      }
-
-      if self.patterns.len() > 0 {
-         if self.patterns.contains_key(&val_masked) {
-            let expanded = format!("{}{}", self.patterns[&val_masked].clone(), descr);
-            formats.push((format!("{}", self.name), expanded));
+      let decoded_value = match self.patterns.get(&val_masked) {
+         Some(v) => {
+            format!("{}", v)
          }
+         _ => {
+            // TODO obey user format
+            // TODO obey negated
+            format!("0x{:0width$X}", val_masked, width = self.width as usize)
+         }
+      };
+
+      RegisterDescription {
+         name: self.name.clone(),
+         value: decoded_value,
+         description: self.description,
       }
-      else {
-         // no patterns for this range, format it and return
-         // TODO obey preferred format
-         // TODO obey negated
-         let t = (format!("{}", self.name), format!("{:X}{}", val_masked, descr));
-         formats.push(t);
-      }
-      formats
    }
 }
 // TODO implement fmt so we can print an inflated mask?
@@ -232,16 +234,16 @@ fn smart_decode(number: u32, mut keys: Vec<&str>, configs: &InfoMap) {
    // print the value of all decoders, they will mask out the relevant sections of the user's
    // value. Anything not in a given pattern is considered 'reserved' and not printed
    // TODO sort keys by start bit
-   let mut all_formats: Vec<(String, String)> = Vec::new();
+   let mut all_formats: Vec<RegisterDescription> = Vec::new();
    for d in decoders {
-      all_formats.extend(d.format_value(number));
+      all_formats.push(d.format_value(number));
    }
 
    // final user output
    // TODO obey user format
    println!("0x{:X} ->", number);
    for f in all_formats {
-      println!("\t{} =\t{}", f.0, f.1);
+      println!("\t{} =\t{} ({:?})", &f.name, &f.value, &f.description);
    }
 }
 
