@@ -19,6 +19,7 @@ const CONFIG_FILE_NAME: &str = ".bitinfo.yaml";
 // available printing preferences
 #[derive(Debug, Clone, Copy)]
 enum PrintPreference {
+   // TODO bool?
    Bin,
    Hex,
    Decimal,
@@ -35,6 +36,7 @@ impl From<&str> for PrintPreference {
          _ => PrintPreference::Hex,
       }
    }
+   // TODO take num and pref and format it
 }
 
 type InfoMap = HashMap<String, BitInfo>;
@@ -146,6 +148,7 @@ impl InflatedRegisterMask {
    }
    fn format_value(self, val: u32) -> RegisterDescription {
       // shift down user value so we can use it more directly
+      // TODO don't lock to u32
       let extracted_mask: u32 = self.bitmask[..].load::<u32>();
       let val_masked = (val & extracted_mask) >> self.base_offset;
 
@@ -154,9 +157,12 @@ impl InflatedRegisterMask {
             format!("{}", v)
          }
          _ => {
-            // TODO obey user format
             // TODO obey negated
-            format!("0x{:0width$X}", val_masked, width = self.width as usize)
+            match self.print_format {
+               PrintPreference::Bin => format!("0b{:b}", val_masked),
+               PrintPreference::Hex => format!("0x{:X}", val_masked),
+               PrintPreference::Decimal => format!("{}", val_masked),
+            }
          }
       };
 
