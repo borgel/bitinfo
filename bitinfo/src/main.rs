@@ -140,20 +140,22 @@ impl InflatedRegisterMask {
       let extracted_mask: u32 = self.bitmask[..].load::<u32>();
       let val_masked = (val & extracted_mask) >> self.base_offset;
 
+      let mut descr = format!("");
+      if let Some(d) = self.description {
+         descr = format!(" ({})", d);
+      }
+
       if self.patterns.len() > 0 {
          if self.patterns.contains_key(&val_masked) {
-            formats.push((format!("{}", self.name), self.patterns[&val_masked].clone()));
+            let expanded = format!("{}{}", self.patterns[&val_masked].clone(), descr);
+            formats.push((format!("{}", self.name), expanded));
          }
       }
       else {
          // no patterns for this range, format it and return
          // TODO obey preferred format
          // TODO obey negated
-         // TODO add desription (new struct for all three?)
-         let mut t = (format!("{}", self.name), format!("{:X}", val_masked));
-         if let Some(desc) = self.description {
-            t = (format!("{}", self.name), format!("{:X} ({})", val_masked, desc));
-         }
+         let t = (format!("{}", self.name), format!("{:X}{}", val_masked, descr));
          formats.push(t);
       }
       formats
