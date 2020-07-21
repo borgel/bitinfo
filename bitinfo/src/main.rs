@@ -8,6 +8,7 @@ use std::fs::File;
 use std::io::Read;
 use bitvec::prelude::*;
 use std::iter::repeat;
+use log::{info, trace};
 
 use serde::{Serialize, Deserialize};
 
@@ -170,6 +171,7 @@ impl InflatedRegisterMask {
 // TODO implement fmt so we can print an inflated mask?
 
 fn main() {
+   env_logger::init();
    let app = App::new("The bitinfo tool to tell you about the bits in your registers")
       .setting(AppSettings::TrailingVarArg)
       // TODO more args
@@ -189,7 +191,7 @@ fn main() {
 
    // begin loading all .bitinfo files in PWD
    let configs = load_configs();
-   println!("Loaded {} configs", configs.len());
+   trace!("Loaded {} configs", configs.len());
 
    for td in to_decode {
       // split on anything that isn't a number
@@ -226,14 +228,14 @@ fn smart_decode(number: u32, mut keys: Vec<&str>, configs: &InfoMap) {
    };
 
    // FIXME rm
-   println!("found a decoder for {}! {:?}", &name, &decoder);
+   info!("found a decoder for {}! {:?}", &name, &decoder);
 
    // prep the list of decoders for this BitInfo's fields
    let decoders = prep_decoders(&decoder);
 
    // TODO use a logger to put behind info flags
    // FIXME rm
-   println!("inflated deocders to this list:\n{:#?}", decoders);
+   info!("inflated deocders to this list:\n{:#?}", decoders);
 
    // print the value of all decoders, they will mask out the relevant sections of the user's
    // value. Anything not in a given pattern is considered 'reserved' and not printed
@@ -334,7 +336,7 @@ fn load_config(path: &PathBuf) -> Result<InfoMap, ()>  {
       Ok(file) => file,
    };
 
-   println!("Opened {:?}", &f);
+   info!("Opened {:?}", &f);
 
 
    // FIXME rm
@@ -349,16 +351,7 @@ fn load_config(path: &PathBuf) -> Result<InfoMap, ()>  {
       },
    };
 
-   // FIXME rm
-   println!("inflated info {:?}\n\n", &inflated);
-   for (name, config) in &inflated {
-      println!("One: {}:{:?}", name, config);
-      let hm = config.registers.as_ref().unwrap();
-      for r in hm {
-         println!("  Two: {:?}", r);
-      }
-   }
-
+   trace!("inflated info {:#?}\n\n", &inflated);
    Ok(inflated)
 }
 
