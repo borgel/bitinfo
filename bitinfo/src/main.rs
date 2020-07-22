@@ -95,6 +95,7 @@ struct RegisterMask{
 }
 
 // useful for passing around the final baked descriptions to format out to the user
+#[derive(Debug)]
 struct RegisterDescription {
    name: String,
    value: String,
@@ -234,26 +235,35 @@ fn main() {
    let configs = load_configs();
    trace!("Loaded {} configs", configs.len());
 
+   let mut results: Option<(RegisterDescription, Vec<RegisterDescription>)> = None;
    for td in to_decode {
+
       // split on anything that isn't a number
       let mut sp: Vec<&str> = td.split(|c: char| SEPARATORS.contains(c)).collect();
       if sp.len() > 1 {
          // get the last segment of the vec which should be the final value
          let numeric_val = sp.pop().unwrap();
          if let Ok(nv) = parse::<u32>(numeric_val) {
-            smart_decode(nv, sp, &configs);
+            results = Some(smart_decode(nv, sp, &configs));
          }
-         continue;
       }
       else {
          if let Ok(as_integer) = parse::<u32>(td) {
-            print_bits(as_integer, print_each_bit);
+            results = Some(print_bits(as_integer, print_each_bit));
+         }
+      }
+
+      // print all the info for this value
+      if let Some(final_results) = &results {
+         println!("{}", final_results.0);
+         for f in &final_results.1 {
+            println!("  {}", &f);
          }
       }
    }
 }
 
-fn smart_decode(number: u32, keys: Vec<&str>, configs: &InfoMap) {
+fn smart_decode(number: u32, keys: Vec<&str>, configs: &InfoMap) -> (RegisterDescription, Vec<RegisterDescription>) {
    trace!("\n{:?}: {:?}", keys, number);
 
    let name = keys.last().unwrap().clone();
@@ -262,8 +272,7 @@ fn smart_decode(number: u32, keys: Vec<&str>, configs: &InfoMap) {
       Some(d) => d,
       None => {
          // if we don't have a config, just print the bits
-         print_bits(number, false);
-         return
+         return print_bits(number, false);
       }
    };
 
@@ -285,10 +294,15 @@ fn smart_decode(number: u32, keys: Vec<&str>, configs: &InfoMap) {
 
    // final user output
    let default_format = PrintPreference::from(decoder.preferred_format.as_ref());
-   println!("{} {} ->", keys.join("."), default_format.format_val(number));
-   for f in all_formats {
-      println!("{}", &f);
-   }
+   (
+      RegisterDescription {
+         name: format!("{} {} ->", keys.join("."), default_format.format_val(number)),
+            value: "".to_string(),
+            description: None,
+            sort: 0,
+      },
+      all_formats
+   )
 }
 
 fn find_config_for_name<'a>(keys: &Vec<&str>, config: &'a InfoMap) -> Option<&'a BitInfo> {
@@ -331,24 +345,36 @@ fn prep_decoders(raw_dec: &BitInfo) -> Vec<InflatedRegisterMask>  {
    return decoders
 }
 
-fn print_bits(number: u32, print_each_bit: bool) {
-   println!("\"{}\" -> {} {:#X} {:#b}", number, number, number, number);
-   if !print_each_bit {
-      return
-   }
+fn print_bits(number: u32, print_each_bit: bool) -> (RegisterDescription, Vec<RegisterDescription>) {
+   let header = RegisterDescription {
+      name: format!("{}", number),
+      value: format!("{} {:#X} {:#b}", number, number, number),
+      description: None,
+      sort: 0,
+   };
 
-   let bits = 8 * size_of_val(&number);
-   let mut number_to_eat = number;
-   for i in 0..bits {
-      if (number_to_eat & 0x1) != 0 {
-         println!("{}th set", i);
-      }
-      number_to_eat >>= 1;
+   let mut extra_info: Vec<RegisterDescription> = Vec::new();
 
-      if number_to_eat == 0 {
-         break;
+   if print_each_bit {
+      let bits = 8 * size_of_val(&number);
+      let mut number_to_eat = number;
+      for i in 0..bits {
+         if (number_to_eat & 0x1) != 0 {
+            extra_info.push(RegisterDescription {
+               name: "".to_string(),
+               value: format!("{}th set", i),
+               description: None,
+               sort: i as u32,
+            });
+         }
+         number_to_eat >>= 1;
+
+         if number_to_eat == 0 {
+            break;
+         }
       }
    }
+   (header, extra_info)
 }
 
 // returns a map of all the loaded user configs to search for decoding, even if it's empty
