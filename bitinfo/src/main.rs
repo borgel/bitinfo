@@ -50,7 +50,6 @@ impl From<Option<&String>> for PrintPreference {
 }
 impl PrintPreference {
    fn format_val(&self, val: u32) -> String {
-      // TODO obey negated
       match self {
          PrintPreference::Bin => format!("0b{:b}", val),
          PrintPreference::Hex => format!("0x{:X}", val),
@@ -85,7 +84,6 @@ struct RegisterMask{
    width: Option<u32>,
 
    description: Option<String>,
-   negated: Option<bool>,
    // print this in bin, dec, hex
    preferred_format: Option<String>,
 

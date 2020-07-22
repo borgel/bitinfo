@@ -24,7 +24,6 @@ STPM:
                   0b11: C2 / 16 MHz
             ZCR_EN:
                start: 16
-               negated: false
                patterns:
                   0b0: CLK
                   0b1: ZCR
