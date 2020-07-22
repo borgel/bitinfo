@@ -204,13 +204,24 @@ impl InflatedRegisterMask {
 
 fn main() {
    env_logger::init();
-   let app = App::new("The bitinfo tool to tell you about the bits in your registers")
+   let app = App::new("A tool to tell you about the bits in your registers")
       .setting(AppSettings::TrailingVarArg)
-      // TODO more args
+      .arg(Arg::with_name("bits")
+           .long("bits")
+           .help("Print which i'th bits are set for numbers with no other available formatters")
+           .required(false)
+           .takes_value(false))
       .arg(Arg::with_name("inputs")
            .multiple(true)
+           .help("Values to display and format")
+           .takes_value(true)
           );
    let options = app.get_matches();
+
+   trace!("{:#?}", options);
+
+   // get the normal args
+   let print_each_bit = options.is_present("bits");
 
    // check to see if there are any trailing args and get them
    let to_decode: Vec<&str>;
@@ -233,14 +244,12 @@ fn main() {
          let numeric_val = sp.pop().unwrap();
          if let Ok(nv) = parse::<u32>(numeric_val) {
             smart_decode(nv, sp, &configs);
-            println!("");
          }
          continue;
       }
       else {
          if let Ok(as_integer) = parse::<u32>(td) {
-            print_bits(as_integer);
-            println!("");
+            print_bits(as_integer, print_each_bit);
          }
       }
    }
@@ -255,7 +264,7 @@ fn smart_decode(number: u32, keys: Vec<&str>, configs: &InfoMap) {
       Some(d) => d,
       None => {
          // if we don't have a config, just print the bits
-         print_bits(number);
+         print_bits(number, false);
          return
       }
    };
@@ -324,8 +333,11 @@ fn prep_decoders(raw_dec: &BitInfo) -> Vec<InflatedRegisterMask>  {
    return decoders
 }
 
-fn print_bits(number: u32) {
+fn print_bits(number: u32, print_each_bit: bool) {
    println!("\"{}\" -> {} {:#X} {:#b}", number, number, number, number);
+   if !print_each_bit {
+      return
+   }
 
    let bits = 8 * size_of_val(&number);
    let mut number_to_eat = number;
@@ -384,11 +396,4 @@ fn load_config(path: &PathBuf) -> Result<InfoMap, ()>  {
    trace!("inflated info {:#?}\n\n", &inflated);
    Ok(inflated)
 }
-
-// FIXME rm
-/*
-fn print_type_of<T>(_: &T) {
-    println!("{}", std::any::type_name::<T>())
-}
-*/
 
