@@ -9,6 +9,7 @@ use std::io::Read;
 use bitvec::prelude::*;
 use std::iter::repeat;
 use log::{info, trace};
+use std::fmt;
 
 use serde::{Serialize, Deserialize};
 
@@ -36,7 +37,26 @@ impl From<&str> for PrintPreference {
          _ => PrintPreference::Hex,
       }
    }
-   // TODO take num and pref and format it
+}
+impl From<Option<&String>> for PrintPreference {
+   fn from(s: Option<&String>) -> Self {
+      if let None = s {
+         PrintPreference::Hex
+      }
+      else {
+         PrintPreference::from(s.unwrap().to_lowercase().as_ref())
+      }
+   }
+}
+impl PrintPreference {
+   fn format_val(&self, val: u32) -> String {
+      // TODO obey negated
+      match self {
+         PrintPreference::Bin => format!("0b{:b}", val),
+         PrintPreference::Hex => format!("0x{:X}", val),
+         PrintPreference::Decimal => format!("{}", val),
+      }
+   }
 }
 
 type InfoMap = HashMap<String, BitInfo>;
@@ -84,6 +104,17 @@ struct RegisterDescription {
 
    // to sort the order in which these should be printed
    sort: u32,
+}
+impl fmt::Display for RegisterDescription {
+   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+      let r = write!(f, "\t{} =\t{}", self.name, self.value);
+      if let Some(d) = &self.description {
+         write!(f, " ({})", d)
+      }
+      else {
+         r
+      }
+   }
 }
 
 // a RegisterMask which has been inflated and ready to use
@@ -157,12 +188,7 @@ impl InflatedRegisterMask {
             format!("{}", v)
          }
          _ => {
-            // TODO obey negated
-            match self.print_format {
-               PrintPreference::Bin => format!("0b{:b}", val_masked),
-               PrintPreference::Hex => format!("0x{:X}", val_masked),
-               PrintPreference::Decimal => format!("{}", val_masked),
-            }
+            self.print_format.format_val(val_masked)
          }
       };
 
@@ -207,24 +233,25 @@ fn main() {
          let numeric_val = sp.pop().unwrap();
          if let Ok(nv) = parse::<u32>(numeric_val) {
             smart_decode(nv, sp, &configs);
+            println!("");
          }
          continue;
       }
       else {
          if let Ok(as_integer) = parse::<u32>(td) {
             print_bits(as_integer);
+            println!("");
          }
       }
    }
 }
 
-fn smart_decode(number: u32, mut keys: Vec<&str>, configs: &InfoMap) {
-   println!("\n{:?}: {:?}", keys, number);
+fn smart_decode(number: u32, keys: Vec<&str>, configs: &InfoMap) {
+   trace!("\n{:?}: {:?}", keys, number);
 
    let name = keys.last().unwrap().clone();
 
-   // TODO decode from .bitinfo map
-   let decoder = match find_config_for_name(&mut keys, configs) {
+   let decoder = match find_config_for_name(&keys, configs) {
       Some(d) => d,
       None => {
          // if we don't have a config, just print the bits
@@ -233,19 +260,15 @@ fn smart_decode(number: u32, mut keys: Vec<&str>, configs: &InfoMap) {
       }
    };
 
-   // FIXME rm
    info!("found a decoder for {}! {:?}", &name, &decoder);
 
    // prep the list of decoders for this BitInfo's fields
    let decoders = prep_decoders(&decoder);
 
-   // TODO use a logger to put behind info flags
-   // FIXME rm
    info!("inflated deocders to this list:\n{:#?}", decoders);
 
    // print the value of all decoders, they will mask out the relevant sections of the user's
    // value. Anything not in a given pattern is considered 'reserved' and not printed
-   // TODO sort keys by start bit
    let mut all_formats: Vec<RegisterDescription> = Vec::new();
    for d in decoders {
       all_formats.push(d.format_value(number));
@@ -254,22 +277,23 @@ fn smart_decode(number: u32, mut keys: Vec<&str>, configs: &InfoMap) {
    all_formats.sort_by(|a, b| a.sort.cmp(&b.sort));
 
    // final user output
-   // TODO obey user format
-   println!("0x{:X} ->", number);
+   let default_format = PrintPreference::from(decoder.preferred_format.as_ref());
+   println!("{} {} ->", keys.join("."), default_format.format_val(number));
    for f in all_formats {
-      println!("\t{} =\t{} ({:?})", &f.name, &f.value, &f.description);
+      println!("{}", &f);
    }
 }
 
-fn find_config_for_name<'a>(keys: &mut Vec<&str>, config: &'a InfoMap) -> Option<&'a BitInfo> {
+fn find_config_for_name<'a>(keys: &Vec<&str>, config: &'a InfoMap) -> Option<&'a BitInfo> {
    // use .get so it returns an Option instead of a panic
    // TODO make hashmap search case insensitive, which is surprisingly hard
-   if let Some(cfg) = config.get(keys[0]) {
-      keys.remove(0);
+   let mut local_keys = keys.clone();
+   if let Some(cfg) = config.get(local_keys[0]) {
+      local_keys.remove(0);
 
       // if the BitInfo has more 'registers' than recurse, otherwise we are at the end
       if let Some(r) = cfg.registers.as_ref() {
-         return find_config_for_name(keys, r);
+         return find_config_for_name(&local_keys, r);
       }
       else {
          return Some(cfg)
