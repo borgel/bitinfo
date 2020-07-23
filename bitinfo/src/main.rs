@@ -11,6 +11,9 @@ use std::iter::repeat;
 use log::{info, trace};
 use std::fmt;
 
+#[macro_use] extern crate prettytable;
+use prettytable::{Table, format};
+
 use serde::{Serialize, Deserialize};
 
 const SEPARATORS: &str = ":./";
@@ -253,12 +256,34 @@ fn main() {
          }
       }
 
-      // print all the info for this value
+      // output for this value
       if let Some(final_results) = &results {
-         println!("{}", final_results.0);
-         for f in &final_results.1 {
-            println!("  {}", &f);
+         let mut table = Table::new();
+         table.set_format(*format::consts::FORMAT_NO_BORDER_LINE_SEPARATOR);
+
+         let title = &final_results.0;
+
+         // if there is no additional decode, this is a one row table
+         if final_results.1.len() == 0 {
+            table.add_row(row![title.name, title.value]);
          }
+         else {
+            table.set_titles(row![title.name, title.value]);
+
+            // remaining body
+            for f in &final_results.1 {
+               if let Some(d) = &f.description {
+                  table.add_row(row![f.name, f.value, d]);
+               }
+               else {
+                  table.add_row(row![f.name, f.value]);
+               }
+            }
+         }
+
+         // to stdout
+         println!("");
+         table.printstd();
       }
    }
 }
