@@ -9,6 +9,9 @@ jobs:
       - restore_cache:
           key: project-cache
       - run:
+         name: Install Rust
+         command: "rustup install stable"
+      - run:
           name: Stable Build
           command: |
             cd bitinfo
