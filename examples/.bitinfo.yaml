@@ -1,0 +1,172 @@
+# Welcome to bitinfo! This sample configuration aims to provide an example of a typical
+# desciptive YAML file you might find in a repository using this tool.
+A-Device:
+   # a root node has a variety of required and optional fields. Its name will be taken from the
+   # root node above ("A-Device" in this case)
+   # Optional Description: it may include a description to explain to the user what the device is
+   description: This is the top level of organization. Think part number like LIS2DH or STM32F104
+   # Optional Preferred Printing Format: Use to specify the default format that numeric values from
+   # all children are printed in (hex, bin, decimal). A child's preferred_format will always
+   # take precidence over the parent's default.
+   preferred_format: hex
+   # Optional Registers: a root node may have a variable number of "registers", which are primarily used to
+   # provide hierarchical organization. A "register" is the same type of structure as the root
+   # node ("A-Device" in this case) and can be nested infinitely. Most projects will have at
+   # least one layer of registers under their root.
+   registers:
+      Register1:
+         description: The first test register
+         # Optional Fields: A register can have zero to endless "fields". A field describes a range
+         # of bits contained in a register. Registers may contain anything from a single
+         # field (perhaps a sensor value) to a mask of individual bit flags. Each field can
+         # be individually formatted and described.
+         fields:
+            # as in other places, the name of the field key is displayed as the name of the field
+            # to the user
+            AField1:
+               # Start Offset: Every field must specify the offset of their first bit from the
+               # "0th" bit in the register. The 0th offset is the first bit.
+               start: 0
+               # End and Width: Every field may specify either the width of the register in bits
+               # or the offset of their last bit. The following are equlivalent
+               # width: 2
+               # end: 2 (remember the start offset for this field is 0!)
+               # if neither is specified it is assumed the field is one bit wide.
+               width: 2
+               # Optional Description: Describes what this field in the register is for, or
+               # provide context. This is displayed next to the decoded value
+               description: An oddly placed test field
+               # Optional Preferred Printing Format: How this value should be formatted when
+               # displayed to the user. Each field can have a different preference as suits it
+               # If unspecified, will use the parent's value. If there no parent specifies a
+               # preference the default (hex) will be used.
+               preferred_format: dec
+               # Optional Patterns: A field may specify a range of patterns which it recognizes as having specific
+               # descriptions. Patterns can be useful for providing a human friendly description
+               # of values which aren't inherently numeric. When a pattern matches it is displayed
+               # instead of a numeric value. Patterns must match exactly. If a
+               # field specifies any patterns then only patterns will match. That is, if you
+               # specify any patterns every pattern must be specified, or this field will
+               # not decode.
+               patterns:
+                  # a pattern's numeric value can be expressed in any conventional format (binary,
+                  # hex, decimal, octal). These can be intermixed.
+                  0b00: First pattern
+                  0x1: Second pattern
+                  0b10: Third pattern
+                  4: Fourth pattern
+            # now for some more specific examples of useful field types.
+            # the most simple field extracts a single bit flag from a sea of bits
+            AField2:
+               start: 3
+               description: If the bamboozler is enabled
+               preferred_format: dec
+            AField3:
+               # field order doesn't matter
+               description: If the bamboozler is enabled
+               start: 4
+               preferred_format: dec
+               # sometimes it can be handy to describe what the flag states mean
+               patterns:
+                  0b0: Bamboozler disabled
+                  0b1: Bamboozler enabled
+            # extracting oddly sized numeric values is a snap
+            AField4:
+               start: 5
+               end: 11
+               description: The speed of the bamboozler
+               # maybe this one is a scalar thats most useful as a decimal value
+               preferred_format: dec
+            # the most concise field description is just a name and a start bit
+            AFlag1:
+               start: 12
+            AFlag2:
+               start: 13
+            AFlag3:
+               start: 14
+            # fields of different size and shape can be freely intermixed, including with gaps
+            WideField1:
+               start: 18
+               width: 5
+            # anything not covered by a field will be left undecoded
+
+   # Optional Fields: a "BitInfo" root may also have a variable number of "fields". This is where the
+   # decoding magic lives. Most projects will have at least one additional layer of "registers"
+   # first though.
+   fields:
+      BField1:
+         # see the above registers for examples of how fields work, suffice to say the same things
+         # work here that do there
+         description: An oddly placed test field
+         start: 0
+         width: 1
+
+# let's look at a more realistic example device configuration. This is a section of the
+# register description for an energy monitoring sensor
+B-Device:
+   description: An energy sensor
+   registers:
+      DSP_CR3:
+         description: DSP control reg 3
+         bit_width: 32
+         preferred_format: hex
+         fields:
+            TIME_THR:
+               description: The time threshold (us)
+               preferred_format: dec
+               start: 0
+               end: 13
+            ZCR_SEL:
+               start: 14
+               width: 2
+               preferred_format: bin
+               description: Selection bit for ZCR/CLK pin, (output depends on ZCR/CLK enable bit)
+               patterns:
+                  0b00: V1 / 7.8125 kHz
+                  0b01: C1 / 4 MHz
+                  0b10: V2 / 4 MHz (50% Duty Cycle)
+                  0b11: C2 / 16 MHz
+            ZCR_EN:
+               start: 16
+               patterns:
+                  0b0: CLK
+                  0b1: ZCR
+            TMP_TOL:
+               start: 17
+               width: 2
+               description: Tamper tolerance
+               patterns:
+                  0b00: 12.5%
+                  0b01: 8.33%
+                  0b10: 6.25%
+                  0b11: 3.125%
+            TMP_EN:
+               description: Tamper detect enable
+               start: 19
+               patterns:
+                  0b0: tamper disable
+                  0b1: tamper enable
+            S/W Latch 1:
+               start: 21
+            S/W Latch 2:
+               start: 22
+            S/W Auto Latch:
+               description: Auto latch
+               start: 23
+               patterns:
+                  0b0: Disabled
+                  0b1: Enabled
+      DSP_EV2:
+         description: The DSP event reg 2
+         preferred_format: dec
+         bit_width: 32
+         fields:
+            power sign ph1+2 active:
+               start: 0
+            power sign ph1+2 reactive:
+               start: 1
+            energy overflow ph 1+2 active:
+               start: 2
+            energy overflow ph 1+2 reactive:
+               start: 3
+
