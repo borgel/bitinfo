@@ -202,17 +202,24 @@ impl InflatedRegisterMask {
       }
    }
 }
-// TODO implement fmt so we can print an inflated mask?
+
+const ARG_CONFIG_PATH: &str = "path to configuration directory";
+const ARG_BITS: &str = "bits";
 
 fn main() {
    env_logger::init();
    let app = App::new("A tool to tell you about the bits in your registers")
       .setting(AppSettings::TrailingVarArg)
-      .arg(Arg::with_name("bits")
+      .arg(Arg::with_name(ARG_BITS)
            .long("bits")
            .help("Print which i'th bits are set for numbers with no other available formatters")
            .required(false)
            .takes_value(false))
+      .arg(Arg::with_name(ARG_CONFIG_PATH)
+           .long("configs")
+           .help("A directory to load configuration files from (in addition to the normal search pattern)")
+           .required(false)
+           .takes_value(true))
       .arg(Arg::with_name("inputs")
            .multiple(true)
            .help("Values to display and format")
@@ -223,7 +230,7 @@ fn main() {
    trace!("{:#?}", options);
 
    // get the normal args
-   let print_each_bit = options.is_present("bits");
+   let print_each_bit = options.is_present(ARG_BITS);
 
    // check to see if there are any trailing args and get them
    let to_decode: Vec<&str>;
@@ -235,7 +242,14 @@ fn main() {
    }
 
    // begin loading all .bitinfo files in PWD
-   let configs = load_configs();
+   let mut configs = load_configs();
+   if let Some(config_dir) = options.value_of(ARG_CONFIG_PATH) {
+       // if user passed a dir to search, add that too
+       let path = PathBuf::from(config_dir);
+       if let Ok(im) = load_config(&path) {
+           configs.extend(im);
+       }
+   }
    trace!("Loaded {} configs", configs.len());
 
    let mut results: Option<(RegisterDescription, Vec<RegisterDescription>)> = None;
