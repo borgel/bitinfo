@@ -43,6 +43,10 @@ Kerrys-MacBook:bitinfo borgel$ bitinfo --bits 0xa5
 # Get It
 Coming Soon®. Will be on http://crates.io to start.
 
+# Configuration
+TODO
+dice up examples and put them here in YAML code blocks. include examples of how to run them
+
 # Known Limitations
 Many.
 * Though there is no reason it needs to be limited to 32 bit registers, there are a places where this is assumed
