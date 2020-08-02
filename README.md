@@ -1,4 +1,9 @@
-# What?
+# bitinfo
+
+[![CircleCI](https://circleci.com/gh/borgel/bitinfo.svg?style=shield)](https://github.com/borgel/bitinfo)
+[![Version info](https://img.shields.io/crates/v/bitinfo.svg)](https://crates.io/crates/bitinfo)
+
+## What?
 `bitinfo` is a tool to make it easier work with registers by decoding their values.
 
 Let's start with an example of how the tool works. Say you're debugging a new sensor and want to see if a register holds the expected value. You read it and get a cryptic `0x4E0`. This can be decoded by hand, but that's where `bitinfo` comes in. How's this:
@@ -22,7 +27,7 @@ Kerrys-MacBook:bitinfo borgel$ bitinfo STPM.DSP_CR3.0x4E0
 ```
 `bitinfo` lets the developer specify configuration files describing their registers (in this case `STPM.DSP_CR3`) then decode arbitary numeric values based on those files. The corresponding file for this example can be found [here](examples/stpm.bitinfo.yaml).
 
-# Examples
+## Examples
 `bitinfo` will help you describe a number, even if it doesn't know how to decode it as a specific register value.
 ```bash
 Kerrys-MacBook:bitinfo borgel$ bitinfo 0xa5
@@ -40,14 +45,14 @@ Kerrys-MacBook:bitinfo borgel$ bitinfo --bits 0xa5
      | 7th set
 ```
 
-# Get It
+## Get It
 Coming Soon®. Will be on http://crates.io to start.
 
-# Configuration
+## Configuration
 TODO
 dice up examples and put them here in YAML code blocks. include examples of how to run them
 
-# Known Limitations
+## Known Limitations
 Many.
 * Though there is no reason it needs to be limited to 32 bit registers, there are a places where this is assumed
 * Only available via a fully working Rust install (but on any platform!)
