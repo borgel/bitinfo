@@ -8,8 +8,9 @@ use std::fs::File;
 use std::io::Read;
 use bitvec::prelude::*;
 use std::iter::repeat;
-use log::{info, trace};
+use log::{info, trace, warn};
 use std::fmt;
+use glob::glob;
 
 #[macro_use] extern crate prettytable;
 use prettytable::{Table, format};
@@ -17,8 +18,6 @@ use prettytable::{Table, format};
 use serde::{Serialize, Deserialize};
 
 const SEPARATORS: &str = ":./";
-
-const CONFIG_FILE_NAME: &str = ".bitinfo.yaml";
 
 // available printing preferences
 #[derive(Debug, Clone, Copy)]
@@ -246,8 +245,8 @@ fn main() {
    if let Some(config_dir) = options.value_of(ARG_CONFIG_PATH) {
        // if user passed a dir to search, add that too
        let path = PathBuf::from(config_dir);
-       if let Ok(im) = load_config(&path) {
-           configs.extend(im);
+       if let Some(p) = &path.to_str() {
+           configs.extend(load_with_globs(p));
        }
    }
    trace!("Loaded {} configs", configs.len());
@@ -422,8 +421,8 @@ fn load_configs() -> InfoMap {
    let mut full_path = env::current_dir().unwrap();
    // TODO dispatch these in parallel
    loop {
-      if let Ok(c) = load_config(&full_path) {
-         all_infos.extend(c.into_iter());
+      if let Some(path_str) = full_path.to_str() {
+          all_infos.extend(load_with_globs(path_str));
       }
       if !full_path.pop() {
          break;
@@ -432,10 +431,21 @@ fn load_configs() -> InfoMap {
    all_infos
 }
 
-fn load_config(path: &PathBuf) -> Result<InfoMap, ()>  {
-   let mut path = PathBuf::from(path);
-   path.push(CONFIG_FILE_NAME);
+fn load_with_globs(path_root: &str) -> InfoMap {
+   let mut all_infos: HashMap<String, BitInfo> = HashMap::new();
+    // try to search for anything that fits .bitinfo.*.yaml
+    for entry in glob(&format!("{}/.bitinfo*.yaml", path_root)).expect("Failed to read glob pattern") {
+        if let Ok(path) = entry {
+            if let Ok(c) = load_config(&path) {
+                all_infos.extend(c.into_iter());
+            }
+        }
+    }
+    all_infos
+}
 
+fn load_config(path: &PathBuf) -> Result<InfoMap, ()>  {
+   let path = PathBuf::from(path);
    let mut f = match File::open(path) {
       Err(_) => return Err(()),
       Ok(file) => file,
@@ -443,15 +453,14 @@ fn load_config(path: &PathBuf) -> Result<InfoMap, ()>  {
 
    info!("Opened {:?}", &f);
 
-
-   // FIXME rm
    let mut s = String::new();
    f.read_to_string(&mut s).unwrap();
 
    let inflated: HashMap<String, BitInfo> = match serde_yaml::from_str(&s) {
       Ok(inf) => inf,
       Err(e) => {
-         eprintln!("failed to inflate: {}", e);
+         // this happens if files are empty, malformed, etc
+         warn!("failed to inflate: {}", e);
          return Err(())
       },
    };
