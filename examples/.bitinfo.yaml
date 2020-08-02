@@ -51,20 +51,20 @@ A-Device:
                patterns:
                   # a pattern's numeric value can be expressed in any conventional format (binary,
                   # hex, decimal, octal). These can be intermixed.
-                  0b00: First pattern
-                  0x1: Second pattern
-                  0b10: Third pattern
-                  4: Fourth pattern
+                  0b00: Zero'th pattern
+                  0x1: First pattern
+                  0b10: Second pattern
+                  0b11: Third pattern
             # now for some more specific examples of useful field types.
             # the most simple field extracts a single bit flag from a sea of bits
             AField2:
-               start: 3
+               start: 2
                description: If the bamboozler is enabled
                preferred_format: dec
             AField3:
-               # field order doesn't matter
-               description: If the bamboozler is enabled
-               start: 4
+               # it's a YAML file so field order doesn't matter
+               description: If the second bamboozler is enabled
+               start: 3
                preferred_format: dec
                # sometimes it can be handy to describe what the flag states mean
                patterns:
@@ -72,21 +72,21 @@ A-Device:
                   0b1: Bamboozler enabled
             # extracting oddly sized numeric values is a snap
             AField4:
-               start: 5
+               start: 4
                end: 11
                description: The speed of the bamboozler
                # maybe this one is a scalar thats most useful as a decimal value
                preferred_format: dec
             # the most concise field description is just a name and a start bit
             AFlag1:
-               start: 12
+               start: 11
             AFlag2:
-               start: 13
+               start: 12
             AFlag3:
-               start: 14
+               start: 13
             # fields of different size and shape can be freely intermixed, including with gaps
             WideField1:
-               start: 18
+               start: 17
                width: 5
             # anything not covered by a field will be left undecoded
 
