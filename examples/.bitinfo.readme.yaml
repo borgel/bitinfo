@@ -1,0 +1,31 @@
+# the example configurations from the main readme
+R1-Device:
+   description: This is the top level of organization. Think part number like LIS2DH or STM32F104
+   preferred_format: hex
+   fields:
+      BField1:
+         start: 0
+         width: 1
+         description: I'm not sure what a bamboozler is, are you?
+         # sometimes it can be handy to describe what the flag states mean
+         patterns:
+            0b0: Bamboozler disabled
+            0b1: Bamboozler enabled
+
+R2-Device:
+   description: This is the top level of organization. Often an entire device (CPU, complex sensor, etc)
+   registers:
+      Register1:
+         description: A second level of organization. Think of a peripheral or register in a CPU or sensor
+         fields:
+            A nibble of decimals:
+               start: 0
+               width: 4
+               preferred_format: dec
+            A bamboozler to control:
+               start: 4
+               width: 1
+               patterns:
+                  0b0: Bamboozler disabled
+                  0b1: Bamboozler enabled
+

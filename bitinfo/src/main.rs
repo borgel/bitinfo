@@ -205,9 +205,21 @@ impl InflatedRegisterMask {
 const ARG_CONFIG_PATH: &str = "path to configuration directory";
 const ARG_BITS: &str = "bits";
 
+const ARG_INFO_STRING: &str = "A tool to tell you about the bits in your registers\n
+bitinfo can be invoked in two ways: to describe an arbitrary number or provide a detailed description of a certain register. Note register description is only possible with appropriate configuration files in place. See the documentation in the repo for detail.
+
+To describe a number:
+bitinfo <numbers to describe>
+bitinfo 0xBEEF 0b110011 453
+
+To describe a register (depending on configuration file):
+bitinfo Device1.Register.Number
+bitinfo STM32F427.USART1.0x4501
+";
+
 fn main() {
    env_logger::init();
-   let app = App::new("A tool to tell you about the bits in your registers")
+   let app = App::new(ARG_INFO_STRING)
       .setting(AppSettings::TrailingVarArg)
       .arg(Arg::with_name(ARG_BITS)
            .long("bits")
