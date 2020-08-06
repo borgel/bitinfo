@@ -347,6 +347,10 @@ fn find_config_for_name<'a>(keys: &Vec<&str>, config: &'a InfoMap) -> Option<&'a
    // use .get so it returns an Option instead of a panic
    // TODO make hashmap search case insensitive, which is surprisingly hard
    let mut local_keys = keys.clone();
+   if local_keys.len() == 0 {
+      return None
+   }
+
    if let Some(cfg) = config.get(local_keys[0]) {
       local_keys.remove(0);
 
