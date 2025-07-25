@@ -1,6 +1,5 @@
 # `bitinfo`
 
-[![CircleCI](https://circleci.com/gh/borgel/bitinfo.svg?style=shield)](https://github.com/borgel/bitinfo)
 [![Version info](https://img.shields.io/crates/v/bitinfo.svg)](https://crates.io/crates/bitinfo)
 
 `bitinfo` is a tool to make it easier work with registers by decoding their values.
