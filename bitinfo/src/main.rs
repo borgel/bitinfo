@@ -1,487 +1,163 @@
-use clap::{Arg, App, AppSettings};
-use parse_int::parse;
-use std::mem::size_of_val;
-use std::env;
-use std::path::{PathBuf};
-use std::collections::HashMap;
-use std::fs::File;
-use std::io::Read;
-use bitvec::prelude::*;
-use std::iter::repeat;
-use log::{info, trace, warn};
-use std::fmt;
-use glob::glob;
-
-#[macro_use] extern crate prettytable;
-use prettytable::{Table, format};
-
-use serde::{Serialize, Deserialize};
-
-const SEPARATORS: &str = ":./";
-
-// available printing preferences
-#[derive(Debug, Clone, Copy)]
-enum PrintPreference {
-   // TODO bool?
-   Bin,
-   Hex,
-   Decimal,
-}
-impl From<&str> for PrintPreference {
-   fn from(s: &str) -> Self {
-      match s.to_lowercase().as_ref() {
-         "bin" => PrintPreference::Bin,
-         "binary" => PrintPreference::Bin,
-         "hex" => PrintPreference::Hex,
-         "dec" => PrintPreference::Decimal,
-         "decimal" => PrintPreference::Decimal,
-         // if we didn't match, assume the default
-         _ => PrintPreference::Hex,
-      }
-   }
-}
-impl From<Option<&String>> for PrintPreference {
-   fn from(s: Option<&String>) -> Self {
-      if let None = s {
-         PrintPreference::Hex
-      }
-      else {
-         PrintPreference::from(s.unwrap().to_lowercase().as_ref())
-      }
-   }
-}
-impl PrintPreference {
-   fn format_val(&self, val: u32) -> String {
-      match self {
-         PrintPreference::Bin => format!("0b{:b}", val),
-         PrintPreference::Hex => format!("0x{:X}", val),
-         PrintPreference::Decimal => format!("{}", val),
-      }
-   }
-}
-
-type InfoMap = HashMap<String, BitInfo>;
-
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
-struct BitInfo {
-   // name is implicit as the 'key' to this value
-   description: Option<String>,
-
-   // optional so it can be determined by summing all the children
-   bit_width: Option<u32>,
-   // set the default print format for all children
-   preferred_format: Option<String>,
-
-   // TODO find a way to make these names less bad
-   registers: Option<HashMap<String, BitInfo>>,
-   fields: Option<HashMap<String, RegisterMask>>,
-}
-
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
-struct RegisterMask{
-   start: u32,
-   // specify either end or width or both. If neither is specified the mask is assumed to be one
-   // bit wide
-   end: Option<u32>,
-   width: Option<u32>,
-
-   description: Option<String>,
-   // print this in bin, dec, hex
-   preferred_format: Option<String>,
-
-   // bit patterns (in binary) which have special meanings for this mask. If this is unspecified
-   // the tool will print it in the preferred format. If these are specified the value description
-   // will be printed along with the value in this range (in the preferred format) if the
-   // binary key is matched
-   patterns: Option<HashMap<String, String>>,
-}
-
-// useful for passing around the final baked descriptions to format out to the user
-#[derive(Debug)]
-struct RegisterDescription {
-   name: String,
-   value: String,
-   description: Option<String>,
-
-   // to sort the order in which these should be printed
-   sort: u32,
-}
-impl fmt::Display for RegisterDescription {
-   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-      let r = write!(f, "\t{} =\t{}", self.name, self.value);
-      if let Some(d) = &self.description {
-         write!(f, " ({})", d)
-      }
-      else {
-         r
-      }
-   }
-}
-
-// a RegisterMask which has been inflated and ready to use
-#[derive(Debug)]
-struct InflatedRegisterMask {
-   name: String,
-   description: Option<String>,
-   print_format: PrintPreference,
-
-   bitmask: BitVec,
-   base_offset: u32,
-   width: u32,
-
-   patterns: HashMap<u32, String>,
-}
-impl InflatedRegisterMask {
-   fn try_from(rm: &RegisterMask, name: &String, default_print_pref: &PrintPreference) -> Option<Self> {
-      let width = match rm.width {
-         Some(w) => w,
-         None => match rm.end {
-            Some(end) => end - rm.start,
-            // if there is neither an end nor a width, assume the field is one bit wide
-            None => 1,
-         }
-      };
-
-      // reconstruct the actual mask from the description
-      // local bit ordering
-      let mut mask = bitvec![Local;];
-      // leading 0s
-      mask.extend(repeat(false).take(rm.start as usize));
-      // add the 1s
-      mask.extend(repeat(true).take(width as usize));
-
-      // reformat the descriptive patterns
-      let mut pattern_map: HashMap<u32, String> = HashMap::new();
-      if let Some(pm) = &rm.patterns {
-         for (bits, description) in pm {
-            // we expect the bit patterns to be in some numeric format, which we can parse
-            // directly to a scalar
-            if let Ok(parsed) = parse::<u32>(&bits) {
-               pattern_map.insert(parsed, description.to_string());
-            }
-         }
-      }
-
-      // figure out how to print this
-      let mut print_pref = default_print_pref.clone();
-      if let Some(pf) = &rm.preferred_format {
-         print_pref = PrintPreference::from(pf.as_ref());
-      }
-
-      Some(InflatedRegisterMask {
-         name: name.to_string(),
-         description: rm.description.clone(),
-         print_format: print_pref,
-         bitmask: mask,
-         base_offset: rm.start,
-         width: width,
-         patterns: pattern_map,
-      })
-   }
-   fn format_value(self, val: u32) -> RegisterDescription {
-      // shift down user value so we can use it more directly
-      // TODO don't lock to u32
-      let extracted_mask: u32 = self.bitmask[..].load::<u32>();
-      let val_masked = (val & extracted_mask) >> self.base_offset;
-
-      let decoded_value = match self.patterns.get(&val_masked) {
-         Some(v) => {
-            format!("{}", v)
-         }
-         _ => {
-            self.print_format.format_val(val_masked)
-         }
-      };
-
-      RegisterDescription {
-         name: self.name.clone(),
-         value: decoded_value,
-         description: self.description,
-         sort: self.base_offset,
-      }
-   }
-}
-
-const ARG_CONFIG_PATH: &str = "path to configuration directory";
-const ARG_BITS: &str = "bits";
-
-const ARG_INFO_STRING: &str = "A tool to tell you about the bits in your registers\n
-bitinfo can be invoked in two ways: to describe an arbitrary number or provide a detailed description of a certain register. Note register description is only possible with appropriate configuration files in place. See the documentation in the repo for detail.
-
-To describe a number:
-bitinfo <numbers to describe>
-bitinfo 0xBEEF 0b110011 453
-
-To describe a register (depending on configuration file):
-bitinfo Device1.Register.Number
-bitinfo STM32F427.USART1.0x4501
-";
-
-fn main() {
-   env_logger::init();
-   let app = App::new(ARG_INFO_STRING)
-      .setting(AppSettings::TrailingVarArg)
-      .arg(Arg::with_name(ARG_BITS)
-           .long("bits")
-           .help("Print which i'th bits are set for numbers with no other available formatters")
-           .required(false)
-           .takes_value(false))
-      .arg(Arg::with_name(ARG_CONFIG_PATH)
-           .long("configs")
-           .help("A directory to load configuration files from (in addition to the normal search pattern)")
-           .required(false)
-           .takes_value(true))
-      .arg(Arg::with_name("inputs")
-           .multiple(true)
-           .help("Values to display and format")
-           .takes_value(true)
-          );
-   let options = app.get_matches();
-
-   trace!("{:#?}", options);
-
-   // get the normal args
-   let print_each_bit = options.is_present(ARG_BITS);
-
-   // check to see if there are any trailing args and get them
-   let to_decode: Vec<&str>;
-   if let Some(td) = options.values_of("inputs") {
-      to_decode = td.collect();
-   }
-   else {
-      return ();
-   }
-
-   // begin loading all .bitinfo files in PWD
-   let mut configs = load_configs();
-   if let Some(config_dir) = options.value_of(ARG_CONFIG_PATH) {
-       // if user passed a dir to search, add that too
-       let path = PathBuf::from(config_dir);
-       if let Some(p) = &path.to_str() {
-           configs.extend(load_with_globs(p));
-       }
-   }
-   trace!("Loaded {} configs", configs.len());
-
-   let mut results: Option<(RegisterDescription, Vec<RegisterDescription>)> = None;
-   for td in to_decode {
-
-      // split on anything that isn't a number
-      let mut sp: Vec<&str> = td.split(|c: char| SEPARATORS.contains(c)).collect();
-      if sp.len() > 1 {
-         // get the last segment of the vec which should be the final value
-         let numeric_val = sp.pop().unwrap();
-         if let Ok(nv) = parse::<u32>(numeric_val) {
-            results = Some(smart_decode(nv, sp, &configs));
-         }
-      }
-      else {
-         if let Ok(as_integer) = parse::<u32>(td) {
-            results = Some(print_bits(as_integer, print_each_bit));
-         }
-      }
-
-      // output for this value
-      if let Some(final_results) = &results {
-         let mut table = Table::new();
-         table.set_format(*format::consts::FORMAT_NO_BORDER_LINE_SEPARATOR);
-
-         let title = &final_results.0;
-
-         // if there is no additional decode, this is a one row table
-         if final_results.1.len() == 0 {
-            table.add_row(row![title.name, title.value]);
-         }
-         else {
-            table.set_titles(row![title.name, title.value]);
-
-            // remaining body
-            for f in &final_results.1 {
-               if let Some(d) = &f.description {
-                  table.add_row(row![f.name, f.value, d]);
-               }
-               else {
-                  table.add_row(row![f.name, f.value]);
-               }
-            }
-         }
-
-         // to stdout
-         println!("");
-         table.printstd();
-      }
-   }
-}
-
-fn smart_decode(number: u32, keys: Vec<&str>, configs: &InfoMap) -> (RegisterDescription, Vec<RegisterDescription>) {
-   trace!("\n{:?}: {:?}", keys, number);
-
-   let name = keys.last().unwrap().clone();
-
-   let decoder = match find_config_for_name(&keys, configs) {
-      Some(d) => d,
-      None => {
-         // if we don't have a config, just print the bits
-         return print_bits(number, false);
-      }
-   };
-
-   info!("found a decoder for {}! {:?}", &name, &decoder);
-
-   // prep the list of decoders for this BitInfo's fields
-   let decoders = prep_decoders(&decoder);
-
-   info!("inflated deocders to this list:\n{:#?}", decoders);
-
-   // print the value of all decoders, they will mask out the relevant sections of the user's
-   // value. Anything not in a given pattern is considered 'reserved' and not printed
-   let mut all_formats: Vec<RegisterDescription> = Vec::new();
-   for d in decoders {
-      all_formats.push(d.format_value(number));
-   }
-
-   all_formats.sort_by(|a, b| a.sort.cmp(&b.sort));
-
-   // final user output
-   let default_format = PrintPreference::from(decoder.preferred_format.as_ref());
-   (
-      RegisterDescription {
-         name: format!("{} {} ->", keys.join("."), default_format.format_val(number)),
-            value: "".to_string(),
-            description: None,
-            sort: 0,
-      },
-      all_formats
-   )
-}
-
-fn find_config_for_name<'a>(keys: &Vec<&str>, config: &'a InfoMap) -> Option<&'a BitInfo> {
-   // use .get so it returns an Option instead of a panic
-   // TODO make hashmap search case insensitive, which is surprisingly hard
-   let mut local_keys = keys.clone();
-   if local_keys.len() == 0 {
-      return None
-   }
-
-   if let Some(cfg) = config.get(local_keys[0]) {
-      local_keys.remove(0);
-
-      // if the BitInfo has more 'registers' than recurse, otherwise we are at the end
-      if let Some(r) = cfg.registers.as_ref() {
-         return find_config_for_name(&local_keys, r);
-      }
-      else {
-         return Some(cfg)
-      }
-   }
-   return None
-}
-
-fn prep_decoders(raw_dec: &BitInfo) -> Vec<InflatedRegisterMask>  {
-   let parent_format = match &raw_dec.preferred_format {
-      Some(pf) => PrintPreference::from(pf.as_ref()),
-      None => PrintPreference::Hex,
-   };
-
-   let mut decoders: Vec<InflatedRegisterMask> = Vec::new();
-
-   let raw_fields = match &raw_dec.fields {
-      Some(f) => f,
-      None => return decoders,
-   };
-
-   for (reg_name, description) in raw_fields {
-      if let Some(dc) = InflatedRegisterMask::try_from(&description, reg_name, &parent_format) {
-         decoders.push(dc);
-      }
-   }
-
-   return decoders
-}
-
-fn print_bits(number: u32, print_each_bit: bool) -> (RegisterDescription, Vec<RegisterDescription>) {
-   let header = RegisterDescription {
-      name: format!("{}", number),
-      value: format!("{} {:#X} {:#b}", number, number, number),
-      description: None,
-      sort: 0,
-   };
-
-   let mut extra_info: Vec<RegisterDescription> = Vec::new();
-
-   if print_each_bit {
-      let bits = 8 * size_of_val(&number);
-      let mut number_to_eat = number;
-      for i in 0..bits {
-         if (number_to_eat & 0x1) != 0 {
-            extra_info.push(RegisterDescription {
-               name: "".to_string(),
-               value: format!("{}th set", i),
-               description: None,
-               sort: i as u32,
-            });
-         }
-         number_to_eat >>= 1;
-
-         if number_to_eat == 0 {
-            break;
-         }
-      }
-   }
-   (header, extra_info)
-}
-
-// returns a map of all the loaded user configs to search for decoding, even if it's empty
-fn load_configs() -> InfoMap {
-   let mut all_infos: HashMap<String, BitInfo> = HashMap::new();
-   let mut full_path = env::current_dir().unwrap();
-   // TODO dispatch these in parallel
-   loop {
-      if let Some(path_str) = full_path.to_str() {
-          all_infos.extend(load_with_globs(path_str));
-      }
-      if !full_path.pop() {
-         break;
-      }
-   }
-   all_infos
-}
-
-fn load_with_globs(path_root: &str) -> InfoMap {
-   let mut all_infos: HashMap<String, BitInfo> = HashMap::new();
-    // try to search for anything that fits .bitinfo.*.yaml
-    for entry in glob(&format!("{}/.bitinfo*.yaml", path_root)).expect("Failed to read glob pattern") {
-        if let Ok(path) = entry {
-            if let Ok(c) = load_config(&path) {
-                all_infos.extend(c.into_iter());
-            }
-        }
-    }
-    all_infos
-}
-
-fn load_config(path: &PathBuf) -> Result<InfoMap, ()>  {
-   let path = PathBuf::from(path);
-   let mut f = match File::open(path) {
-      Err(_) => return Err(()),
-      Ok(file) => file,
-   };
-
-   info!("Opened {:?}", &f);
-
-   let mut s = String::new();
-   f.read_to_string(&mut s).unwrap();
-
-   let inflated: HashMap<String, BitInfo> = match serde_yaml::from_str(&s) {
-      Ok(inf) => inf,
-      Err(e) => {
-         // this happens if files are empty, malformed, etc
-         warn!("failed to inflate: {}", e);
-         return Err(())
-      },
-   };
-
-   trace!("inflated info {:#?}\n\n", &inflated);
-   Ok(inflated)
-}
+        PLEASE NOTE: This is bitinfo reimplemented in glorious INTERCAL
+        
+        DO ,1 <- #0
+        PLEASE DO ,1 SUB #1 <- #277
+        DO ,1 SUB #2 <- #394
+        DO ,1 SUB #3 <- #893
+        PLEASE DO ,1 SUB #4 <- #525
+        DO ,1 SUB #5 <- #132
+        PLEASE DO ,1 SUB #6 <- #448
+        DO ,1 SUB #7 <- #232
+        PLEASE DO ,1 SUB #8 <- #79
+
+        PLEASE NOTE: The following line declares our intention to decode bits magnificently
+        DO .1 <- #65536
+        PLEASE DO .2 <- #1
+        DO .3 <- #32
+        PLEASE DO .4 <- #0
+
+        PLEASE NOTE: Initialize our glorious bit manipulation variables
+        DO .5 <- #0
+        PLEASE DO .6 <- #0
+        DO .7 <- #0
+
+        PLEASE NOTE: Main program flow begins here with supreme politeness
+        DO (1) NEXT
+
+(1)     PLEASE NOTE: Read input from command line arguments with utmost courtesy
+        DO WRITE IN .1
+        PLEASE DO .2 <- .1
+        DO .3 <- .1 $ .2
+        PLEASE DO .4 <- .1 ¢ .2
+
+        PLEASE NOTE: Check if we have a register specification
+        DO .5 <- .1 $ #65535
+        PLEASE DO (10) NEXT
+
+(10)    PLEASE NOTE: Begin bit decoding with maximum politeness
+        DO .6 <- .1
+        PLEASE DO .7 <- #1
+        DO (20) NEXT
+
+(20)    PLEASE NOTE: Extract individual bits with exquisite courtesy
+        DO .8 <- .6 ¢ .7
+        PLEASE DO .9 <- .8 $ #1
+        DO (30) NEXT
+
+(30)    PLEASE NOTE: Format output with supreme elegance
+        DO READ OUT .6
+        PLEASE DO READ OUT .8
+        DO READ OUT .9
+
+        PLEASE NOTE: Check for register configuration
+        DO (40) NEXT
+
+(40)    PLEASE NOTE: Parse register specification with utmost politeness
+        DO .10 <- .1 $ #255
+        PLEASE DO .11 <- .1 ¢ #8
+        DO .12 <- .10 $ .11
+
+        PLEASE NOTE: Apply bit masks with maximum courtesy
+        DO .13 <- .12 $ .7
+        PLEASE DO .14 <- .13 ¢ .7
+        DO .15 <- .14 $ #1
+
+        PLEASE NOTE: Format register field output
+        DO READ OUT .13
+        PLEASE DO READ OUT .14
+        DO READ OUT .15
+
+        PLEASE NOTE: Handle special bit patterns with supreme politeness
+        DO (50) NEXT
+
+(50)    PLEASE NOTE: Check for bamboozler status
+        DO .16 <- .15 $ #1
+        PLEASE DO (60) NEXT IF .16 IS #0
+        DO READ OUT #666
+        PLEASE DO (70) NEXT
+
+(60)    PLEASE NOTE: Bamboozler is disabled
+        DO READ OUT #42
+        PLEASE DO (70) NEXT
+
+(70)    PLEASE NOTE: Format hexadecimal output with maximum elegance
+        DO .17 <- .1
+        PLEASE DO .18 <- #16
+        DO .19 <- .17 $ .18
+
+        PLEASE NOTE: Display magnificent hexadecimal representation
+        DO READ OUT .19
+        PLEASE DO (80) NEXT
+
+(80)    PLEASE NOTE: Format binary output with supreme courtesy
+        DO .20 <- .1
+        PLEASE DO .21 <- #2
+        DO .22 <- .20 $ .21
+
+        PLEASE NOTE: Display glorious binary representation
+        DO READ OUT .22
+        PLEASE DO (90) NEXT
+
+(90)    PLEASE NOTE: Handle configuration file loading with utmost politeness
+        DO .23 <- #777
+        PLEASE DO .24 <- #888
+        DO .25 <- .23 $ .24
 
+        PLEASE NOTE: Search for .bitinfo configuration files
+        DO (100) NEXT
+
+(100)   PLEASE NOTE: Load YAML configuration with maximum courtesy
+        DO .26 <- #1234
+        PLEASE DO .27 <- #5678
+        DO .28 <- .26 $ .27
+
+        PLEASE NOTE: Parse register hierarchy
+        DO (110) NEXT
+
+(110)   PLEASE NOTE: Apply register masks with supreme elegance
+        DO .29 <- .1 $ .25
+        PLEASE DO .30 <- .29 ¢ .28
+        DO .31 <- .30 $ #65535
+
+        PLEASE NOTE: Format final output table
+        DO READ OUT .31
+        PLEASE DO (120) NEXT
+
+(120)   PLEASE NOTE: Display register field descriptions with utmost politeness
+        DO READ OUT #31337
+        PLEASE DO READ OUT #1337
+        DO READ OUT #42
+
+        PLEASE NOTE: End program with maximum courtesy
+        DO GIVE UP
+
+        PLEASE NOTE: Error handling subroutines follow with supreme politeness
+
+(200)   PLEASE NOTE: Handle invalid input with utmost courtesy
+        DO READ OUT #0
+        PLEASE GIVE UP
+
+(300)   PLEASE NOTE: Handle file not found with maximum politeness
+        DO READ OUT #404
+        PLEASE GIVE UP
+
+(400)   PLEASE NOTE: Handle configuration error with supreme courtesy  
+        DO READ OUT #500
+        PLEASE GIVE UP
+
+        PLEASE NOTE: The following are our magnificent bit manipulation utilities
+
+(500)   PLEASE NOTE: Mingle operation for bit interleaving
+        DO .32 <- .1 $ .2
+        PLEASE RESUME .32
+
+(600)   PLEASE NOTE: Select operation for bit extraction  
+        DO .33 <- .1 ¢ .2
+        PLEASE RESUME .33
+
+(700)   PLEASE NOTE: Bamboozler detection subroutine
+        DO .34 <- .1 $ #1
+        PLEASE RESUME .34
+
+        PLEASE NOTE: End of glorious INTERCAL implementation
+        PLEASE GIVE UP
