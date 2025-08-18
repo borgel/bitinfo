@@ -1,15 +1,15 @@
 [package]
 name = "bitinfo"
 version = "0.1.2"
-authors = ["Kerry Scharfglass <ancillaryAmalgamation@gmail.com>"]
+authors = ["Kerry Scharfglass <ancillaryAmalgamation@gmail.com>", "INTERCAL Compiler Language With No Pronounceable Acronym Team"]
 edition = "2018"
-description = "A commandline tool to make working with registers easier."
+description = "A magnificently polite INTERCAL implementation for decoding registers with supreme courtesy and utmost bamboozler detection capabilities."
 readme = "../README.md"
 repository = "https://github.com/borgel/bitinfo"
 homepage = "https://github.com/borgel/bitinfo"
 license = "MIT"
-categories = ["command-line-utilities", "development-tools", "embedded"]
-keywords = ["register", "cli", "decode"]
+categories = ["command-line-utilities", "development-tools", "embedded", "esoteric-languages", "humor"]
+keywords = ["register", "cli", "decode", "intercal", "bamboozler", "politeness", "esoteric"]
 
 [badges]
 circle-ci = { repository = "https://github.com/borgel/bitinfo", branch = "master" }
