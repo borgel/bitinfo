@@ -127,7 +127,6 @@ struct InflatedRegisterMask {
 
    bitmask: BitVec,
    base_offset: u32,
-   width: u32,
 
    patterns: HashMap<u32, String>,
 }
@@ -174,7 +173,6 @@ impl InflatedRegisterMask {
          print_format: print_pref,
          bitmask: mask,
          base_offset: rm.start,
-         width: width,
          patterns: pattern_map,
       })
    }
@@ -322,7 +320,7 @@ fn main() {
 fn smart_decode(number: u32, keys: Vec<&str>, configs: &InfoMap) -> (RegisterDescription, Vec<RegisterDescription>) {
    trace!("\n{:?}: {:?}", keys, number);
 
-   let name = keys.last().unwrap().clone();
+   let name = *keys.last().unwrap();
 
    let decoder = match find_config_for_name(&keys, configs) {
       Some(d) => d,
