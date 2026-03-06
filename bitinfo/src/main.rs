@@ -293,14 +293,20 @@ fn main() {
             table.add_row(row![title.name, title.value]);
          }
          else {
-            table.set_titles(row![title.name, title.value]);
+            let has_descriptions = final_results.1.iter().any(|f| f.description.is_some());
 
-            // remaining body
-            for f in &final_results.1 {
-               if let Some(d) = &f.description {
-                  table.add_row(row![f.name, f.value, d]);
+            if has_descriptions {
+               table.set_titles(row![title.name, title.value, ""]);
+
+               for f in &final_results.1 {
+                  let desc = f.description.as_deref().unwrap_or("");
+                  table.add_row(row![f.name, f.value, desc]);
                }
-               else {
+            }
+            else {
+               table.set_titles(row![title.name, title.value]);
+
+               for f in &final_results.1 {
                   table.add_row(row![f.name, f.value]);
                }
             }
